@@ -52,6 +52,62 @@ Claim files first:
 MSG
     exit 1
   fi
+
+  require_sync_before_commit_raw="$(git config --get multiagent.sync.requireBeforeCommit || true)"
+  if [[ -z "$require_sync_before_commit_raw" ]]; then
+    require_sync_before_commit_raw="false"
+  fi
+  require_sync_before_commit="$(printf '%s' "$require_sync_before_commit_raw" | tr '[:upper:]' '[:lower:]')"
+
+  should_require_sync=0
+  case "$require_sync_before_commit" in
+    1|true|yes|on) should_require_sync=1 ;;
+    0|false|no|off) should_require_sync=0 ;;
+    *) should_require_sync=0 ;;
+  esac
+
+  if [[ "$should_require_sync" == "1" ]]; then
+    base_branch="$(git config --get multiagent.baseBranch || true)"
+    if [[ -z "$base_branch" ]]; then
+      base_branch="dev"
+    fi
+
+    max_behind_raw="$(git config --get multiagent.sync.maxBehindCommits || true)"
+    if [[ -z "$max_behind_raw" ]]; then
+      max_behind_raw="0"
+    fi
+    if [[ ! "$max_behind_raw" =~ ^[0-9]+$ ]]; then
+      echo "[agent-sync-guard] Invalid multiagent.sync.maxBehindCommits value: ${max_behind_raw}" >&2
+      echo "[agent-sync-guard] Expected non-negative integer. Example: git config multiagent.sync.maxBehindCommits 0" >&2
+      exit 1
+    fi
+
+    if ! git fetch origin "$base_branch" --quiet >/dev/null 2>&1; then
+      echo "[agent-sync-guard] Unable to fetch origin/${base_branch} while commit sync gate is enabled." >&2
+      echo "[agent-sync-guard] Disable gate temporarily with: git config multiagent.sync.requireBeforeCommit false" >&2
+      exit 1
+    fi
+
+    if ! git show-ref --verify --quiet "refs/remotes/origin/${base_branch}"; then
+      echo "[agent-sync-guard] Remote base branch not found: origin/${base_branch}" >&2
+      exit 1
+    fi
+
+    behind_count="$(git rev-list --left-right --count "${branch}...origin/${base_branch}" 2>/dev/null | awk '{print $2}')"
+    behind_count="${behind_count:-0}"
+    max_behind="${max_behind_raw}"
+
+    if [[ "$behind_count" -gt "$max_behind" ]]; then
+      cat >&2 <<MSG
+[agent-sync-guard] Commit blocked: '${branch}' is behind origin/${base_branch} by ${behind_count} commit(s) (max allowed: ${max_behind}).
+Run:
+  musafety sync --base ${base_branch}
+Or relax threshold:
+  git config multiagent.sync.maxBehindCommits <n>
+MSG
+      exit 1
+    fi
+  fi
 fi
 
 if command -v pre-commit >/dev/null 2>&1 && [[ -f .pre-commit-config.yaml ]]; then

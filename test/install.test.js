@@ -294,6 +294,100 @@ test('sync command rebases current agent branch onto latest origin/dev', () => {
   assert.equal(payload.behindBefore, 0);
 });
 
+test('pre-commit sync gate blocks agent commits when branch is too far behind base', () => {
+  const repoDir = initRepo();
+  seedCommit(repoDir);
+  attachOriginRemote(repoDir);
+
+  let result = runNode(['setup', '--target', repoDir, '--no-global-install'], repoDir);
+  assert.equal(result.status, 0, result.stderr || result.stdout);
+  result = runCmd('git', ['add', '.'], repoDir);
+  assert.equal(result.status, 0, result.stderr);
+  result = runCmd('git', ['commit', '-m', 'apply musafety setup'], repoDir, {
+    ALLOW_COMMIT_ON_PROTECTED_BRANCH: '1',
+  });
+  assert.equal(result.status, 0, result.stderr);
+  result = runCmd('git', ['push', 'origin', 'dev'], repoDir);
+  assert.equal(result.status, 0, result.stderr);
+
+  result = runCmd('git', ['checkout', '-b', 'agent/test-behind-gate'], repoDir);
+  assert.equal(result.status, 0, result.stderr);
+
+  result = runCmd('git', ['checkout', 'dev'], repoDir);
+  assert.equal(result.status, 0, result.stderr);
+  commitFile(repoDir, 'dev-gate-ahead.txt', 'dev ahead for gate\n', 'dev ahead for gate');
+  result = runCmd('git', ['push', 'origin', 'dev'], repoDir);
+  assert.equal(result.status, 0, result.stderr);
+
+  result = runCmd('git', ['checkout', 'agent/test-behind-gate'], repoDir);
+  assert.equal(result.status, 0, result.stderr);
+  result = runCmd('git', ['config', 'multiagent.sync.requireBeforeCommit', 'true'], repoDir);
+  assert.equal(result.status, 0, result.stderr);
+  result = runCmd('git', ['config', 'multiagent.sync.maxBehindCommits', '0'], repoDir);
+  assert.equal(result.status, 0, result.stderr);
+
+  fs.writeFileSync(path.join(repoDir, 'agent-blocked.txt'), 'blocked\n');
+  result = runCmd(
+    'python3',
+    ['scripts/agent-file-locks.py', 'claim', '--branch', 'agent/test-behind-gate', 'agent-blocked.txt'],
+    repoDir,
+  );
+  assert.equal(result.status, 0, result.stderr || result.stdout);
+  result = runCmd('git', ['add', 'agent-blocked.txt'], repoDir);
+  assert.equal(result.status, 0, result.stderr);
+
+  const commitAttempt = runCmd('git', ['commit', '-m', 'should block due to behind gate'], repoDir);
+  assert.equal(commitAttempt.status, 1, commitAttempt.stderr || commitAttempt.stdout);
+  assert.match(commitAttempt.stderr, /agent-sync-guard/);
+  assert.match(commitAttempt.stderr, /musafety sync --base dev/);
+});
+
+test('pre-commit sync gate honors maxBehindCommits threshold', () => {
+  const repoDir = initRepo();
+  seedCommit(repoDir);
+  attachOriginRemote(repoDir);
+
+  let result = runNode(['setup', '--target', repoDir, '--no-global-install'], repoDir);
+  assert.equal(result.status, 0, result.stderr || result.stdout);
+  result = runCmd('git', ['add', '.'], repoDir);
+  assert.equal(result.status, 0, result.stderr);
+  result = runCmd('git', ['commit', '-m', 'apply musafety setup'], repoDir, {
+    ALLOW_COMMIT_ON_PROTECTED_BRANCH: '1',
+  });
+  assert.equal(result.status, 0, result.stderr);
+  result = runCmd('git', ['push', 'origin', 'dev'], repoDir);
+  assert.equal(result.status, 0, result.stderr);
+
+  result = runCmd('git', ['checkout', '-b', 'agent/test-behind-threshold'], repoDir);
+  assert.equal(result.status, 0, result.stderr);
+
+  result = runCmd('git', ['checkout', 'dev'], repoDir);
+  assert.equal(result.status, 0, result.stderr);
+  commitFile(repoDir, 'dev-threshold-ahead.txt', 'dev ahead threshold\n', 'dev ahead threshold');
+  result = runCmd('git', ['push', 'origin', 'dev'], repoDir);
+  assert.equal(result.status, 0, result.stderr);
+
+  result = runCmd('git', ['checkout', 'agent/test-behind-threshold'], repoDir);
+  assert.equal(result.status, 0, result.stderr);
+  result = runCmd('git', ['config', 'multiagent.sync.requireBeforeCommit', 'true'], repoDir);
+  assert.equal(result.status, 0, result.stderr);
+  result = runCmd('git', ['config', 'multiagent.sync.maxBehindCommits', '2'], repoDir);
+  assert.equal(result.status, 0, result.stderr);
+
+  fs.writeFileSync(path.join(repoDir, 'agent-allowed.txt'), 'allowed\n');
+  result = runCmd(
+    'python3',
+    ['scripts/agent-file-locks.py', 'claim', '--branch', 'agent/test-behind-threshold', 'agent-allowed.txt'],
+    repoDir,
+  );
+  assert.equal(result.status, 0, result.stderr || result.stdout);
+  result = runCmd('git', ['add', 'agent-allowed.txt'], repoDir);
+  assert.equal(result.status, 0, result.stderr);
+
+  const commitAttempt = runCmd('git', ['commit', '-m', 'allowed by behind threshold'], repoDir);
+  assert.equal(commitAttempt.status, 0, commitAttempt.stderr || commitAttempt.stdout);
+});
+
 test('agent-branch-finish blocks when source branch is behind origin/dev', () => {
   const repoDir = initRepo();
   seedCommit(repoDir);

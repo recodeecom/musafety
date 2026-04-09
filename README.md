@@ -161,6 +161,15 @@ musafety sync --all-agent-branches --check
 
 By default, `agent-branch-finish.sh` also blocks finishing when your branch is behind `origin/<base>` and points to `musafety sync`.
 
+Optional pre-commit behind-threshold gate (off by default):
+
+```sh
+git config multiagent.sync.requireBeforeCommit true
+git config multiagent.sync.maxBehindCommits 0
+```
+
+With that enabled, agent-branch commits are blocked if the branch is behind `origin/<base>` by more than the configured threshold.
+
 ## Configure protected branches
 
 Default protected branches are:
@@ -218,6 +227,12 @@ npm pack --dry-run
 ```
 
 ## Release notes
+
+### v0.4.5
+
+- Added optional pre-commit behind-threshold sync gate (`multiagent.sync.requireBeforeCommit`, `multiagent.sync.maxBehindCommits`).
+- Added `musafety sync` workflow (`--check`, sync strategies, report mode).
+- `agent-branch-finish.sh` now blocks finishing when source branch is behind `origin/<base>` (config-aware).
 
 ### v0.4.4
 

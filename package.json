@@ -1,6 +1,6 @@
 {
   "name": "musafety",
-  "version": "0.4.4",
+  "version": "0.4.5",
   "description": "Simple setup command for hardened multi-agent collaboration safety in git repos.",
   "license": "MIT",
   "preferGlobal": true,
