@@ -90,6 +90,7 @@ Use this exact checklist to setup multi-agent safety in this repository for Code
 musafety setup [--target <path>] [--dry-run] [--yes-global-install|--no-global-install]
 musafety copy-prompt
 musafety release   # maintainer-only publish (guarded)
+bash scripts/agent-worktree-prune.sh --base dev   # manual stale worktree cleanup
 ```
 
 No command defaults to `musafety setup`.
@@ -130,6 +131,7 @@ It does **not** bump versions or edit changelog/release notes.
 ```text
 scripts/agent-branch-start.sh
 scripts/agent-branch-finish.sh
+scripts/agent-worktree-prune.sh
 scripts/agent-file-locks.py
 scripts/install-agent-git-hooks.sh
 .githooks/pre-commit
@@ -147,6 +149,12 @@ npm pack --dry-run
 ```
 
 ## Release notes
+
+### v0.4.4
+
+- Added `scripts/agent-worktree-prune.sh` to templates/install.
+- `agent-branch-finish.sh` now auto-runs prune after merge (best effort).
+- Added npm helper script: `agent:cleanup`.
 
 ### v0.4.3
 

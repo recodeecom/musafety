@@ -20,6 +20,7 @@ const TEMPLATE_ROOT = path.resolve(__dirname, '..', 'templates');
 const TEMPLATE_FILES = [
   'scripts/agent-branch-start.sh',
   'scripts/agent-branch-finish.sh',
+  'scripts/agent-worktree-prune.sh',
   'scripts/agent-file-locks.py',
   'scripts/install-agent-git-hooks.sh',
   'githooks/pre-commit',
@@ -28,6 +29,7 @@ const TEMPLATE_FILES = [
 const EXECUTABLE_RELATIVE_PATHS = new Set([
   'scripts/agent-branch-start.sh',
   'scripts/agent-branch-finish.sh',
+  'scripts/agent-worktree-prune.sh',
   'scripts/agent-file-locks.py',
   'scripts/install-agent-git-hooks.sh',
   '.githooks/pre-commit',
@@ -281,6 +283,7 @@ function ensurePackageScripts(repoRoot, dryRun) {
   const wantedScripts = {
     'agent:branch:start': 'bash ./scripts/agent-branch-start.sh',
     'agent:branch:finish': 'bash ./scripts/agent-branch-finish.sh',
+    'agent:cleanup': 'bash ./scripts/agent-worktree-prune.sh --base dev',
     'agent:hooks:install': 'bash ./scripts/install-agent-git-hooks.sh',
     'agent:locks:claim': 'python3 ./scripts/agent-file-locks.py claim',
     'agent:locks:allow-delete': 'python3 ./scripts/agent-file-locks.py allow-delete',

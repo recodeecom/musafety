@@ -169,8 +169,15 @@ if [[ -n "$base_worktree" ]] && is_clean_worktree "$base_worktree" && [[ "$PUSH_
   git -C "$base_worktree" pull --ff-only origin "$BASE_BRANCH" >/dev/null 2>&1 || true
 fi
 
+if [[ -x "${repo_root}/scripts/agent-worktree-prune.sh" ]]; then
+  if ! bash "${repo_root}/scripts/agent-worktree-prune.sh" --base "$BASE_BRANCH"; then
+    echo "[agent-branch-finish] Warning: automatic worktree prune failed." >&2
+    echo "[agent-branch-finish] You can run manual cleanup: bash scripts/agent-worktree-prune.sh --base ${BASE_BRANCH}" >&2
+  fi
+fi
+
 echo "[agent-branch-finish] Merged '${SOURCE_BRANCH}' into '${BASE_BRANCH}' and removed branch."
 if [[ "$source_worktree" == "$current_worktree" && "$source_worktree" == "${repo_root}/.omx/agent-worktrees"/* ]]; then
   echo "[agent-branch-finish] Current worktree '${source_worktree}' still exists because it is the active shell cwd." >&2
-  echo "[agent-branch-finish] Leave this directory, then run: git -C \"${repo_root}\" worktree remove \"${source_worktree}\" --force" >&2
+  echo "[agent-branch-finish] Leave this directory, then run: bash scripts/agent-worktree-prune.sh --base ${BASE_BRANCH}" >&2
 fi

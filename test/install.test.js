@@ -85,6 +85,7 @@ test('setup provisions workflow files and repo config', () => {
   const requiredFiles = [
     'scripts/agent-branch-start.sh',
     'scripts/agent-branch-finish.sh',
+    'scripts/agent-worktree-prune.sh',
     'scripts/agent-file-locks.py',
     'scripts/install-agent-git-hooks.sh',
     '.githooks/pre-commit',
@@ -99,6 +100,7 @@ test('setup provisions workflow files and repo config', () => {
   const packageJson = JSON.parse(fs.readFileSync(path.join(repoDir, 'package.json'), 'utf8'));
   assert.equal(packageJson.scripts['agent:branch:start'], 'bash ./scripts/agent-branch-start.sh');
   assert.equal(packageJson.scripts['agent:safety:setup'], 'musafety setup');
+  assert.equal(packageJson.scripts['agent:cleanup'], 'bash ./scripts/agent-worktree-prune.sh --base dev');
 
   const agentsContent = fs.readFileSync(path.join(repoDir, 'AGENTS.md'), 'utf8');
   assert.equal(agentsContent.includes('<!-- multiagent-safety:START -->'), true);
@@ -284,6 +286,25 @@ exit 1
   assert.equal(fs.existsSync(marker), true, 'global install should run for missing package');
   const args = fs.readFileSync(marker, 'utf8').trim();
   assert.equal(args, 'i -g @fission-ai/openspec');
+});
+
+test('worktree prune removes merged agent worktrees and branches', () => {
+  const repoDir = initRepo();
+  let result = runNode(['setup', '--target', repoDir, '--no-global-install'], repoDir);
+  assert.equal(result.status, 0, result.stderr || result.stdout);
+  seedCommit(repoDir);
+
+  const worktreePath = path.join(repoDir, '.omx', 'agent-worktrees', 'agent__test-prune');
+  result = runCmd('git', ['worktree', 'add', '-b', 'agent/test-prune', worktreePath, 'dev'], repoDir);
+  assert.equal(result.status, 0, result.stderr);
+  assert.equal(fs.existsSync(worktreePath), true);
+
+  result = runCmd('bash', ['scripts/agent-worktree-prune.sh', '--base', 'dev'], repoDir);
+  assert.equal(result.status, 0, result.stderr || result.stdout);
+  assert.equal(fs.existsSync(worktreePath), false);
+
+  const branchResult = runCmd('git', ['show-ref', '--verify', '--quiet', 'refs/heads/agent/test-prune'], repoDir);
+  assert.notEqual(branchResult.status, 0, 'merged agent branch should be removed by prune');
 });
 
 test('release fails outside the maintainer repo path', () => {
