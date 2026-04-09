@@ -15,7 +15,11 @@ const MAINTAINER_RELEASE_REPO = path.resolve(
 );
 const NPM_BIN = process.env.MUSAFETY_NPM_BIN || 'npm';
 const GIT_PROTECTED_BRANCHES_KEY = 'multiagent.protectedBranches';
+const GIT_BASE_BRANCH_KEY = 'multiagent.baseBranch';
+const GIT_SYNC_STRATEGY_KEY = 'multiagent.sync.strategy';
 const DEFAULT_PROTECTED_BRANCHES = ['dev', 'main', 'master'];
+const DEFAULT_BASE_BRANCH = 'dev';
+const DEFAULT_SYNC_STRATEGY = 'rebase';
 
 const TEMPLATE_ROOT = path.resolve(__dirname, '..', 'templates');
 
@@ -61,6 +65,7 @@ const SUGGESTIBLE_COMMANDS = [
   'setup',
   'copy-prompt',
   'protect',
+  'sync',
   'release',
   'install',
   'fix',
@@ -97,6 +102,10 @@ const AI_SETUP_PROMPT = `Use this exact checklist to setup multi-agent safety in
 
 6) Optional: protect extra branches:
    musafety protect add release staging
+
+7) Optional: sync your current agent branch with latest dev:
+   musafety sync --check
+   musafety sync
 `;
 
 function usage() {
@@ -106,6 +115,7 @@ Simple usage (recommended):
   ${TOOL_NAME} setup [--target <path>] [--dry-run] [--yes-global-install|--no-global-install]
   ${TOOL_NAME} copy-prompt
   ${TOOL_NAME} protect <list|add|remove|set|reset> [branches...] [--target <path>]
+  ${TOOL_NAME} sync [--check] [--target <path>] [--base <branch>] [--strategy rebase|merge]
   ${TOOL_NAME} release
 
 Advanced:
@@ -303,6 +313,8 @@ function ensurePackageScripts(repoRoot, dryRun) {
     'agent:locks:status': 'python3 ./scripts/agent-file-locks.py status',
     'agent:plan:init': 'bash ./scripts/openspec/init-plan-workspace.sh',
     'agent:protect:list': `${TOOL_NAME} protect list`,
+    'agent:branch:sync': `${TOOL_NAME} sync`,
+    'agent:branch:sync:check': `${TOOL_NAME} sync --check`,
     'agent:safety:setup': `${TOOL_NAME} setup`,
     'agent:safety:scan': `${TOOL_NAME} scan`,
     'agent:safety:fix': `${TOOL_NAME} fix`,
@@ -476,6 +488,216 @@ function writeProtectedBranches(repoRoot, branches) {
     return;
   }
   gitRun(repoRoot, ['config', GIT_PROTECTED_BRANCHES_KEY, branches.join(' ')]);
+}
+
+function readGitConfig(repoRoot, key) {
+  const result = gitRun(repoRoot, ['config', '--get', key], { allowFailure: true });
+  if (result.status !== 0) {
+    return '';
+  }
+  return (result.stdout || '').trim();
+}
+
+function resolveBaseBranch(repoRoot, explicitBase) {
+  if (explicitBase) {
+    return explicitBase;
+  }
+  const configured = readGitConfig(repoRoot, GIT_BASE_BRANCH_KEY);
+  return configured || DEFAULT_BASE_BRANCH;
+}
+
+function resolveSyncStrategy(repoRoot, explicitStrategy) {
+  const strategy = (explicitStrategy || readGitConfig(repoRoot, GIT_SYNC_STRATEGY_KEY) || DEFAULT_SYNC_STRATEGY)
+    .trim()
+    .toLowerCase();
+  if (strategy !== 'rebase' && strategy !== 'merge') {
+    throw new Error(`Invalid sync strategy '${strategy}' (expected: rebase or merge)`);
+  }
+  return strategy;
+}
+
+function currentBranchName(repoRoot) {
+  const result = gitRun(repoRoot, ['branch', '--show-current'], { allowFailure: true });
+  if (result.status !== 0) {
+    throw new Error('Unable to detect current branch');
+  }
+  const branch = (result.stdout || '').trim();
+  if (!branch) {
+    throw new Error('Detached HEAD is not supported for sync operations');
+  }
+  return branch;
+}
+
+function workingTreeIsDirty(repoRoot) {
+  const result = gitRun(repoRoot, ['status', '--porcelain'], { allowFailure: true });
+  if (result.status !== 0) {
+    throw new Error('Unable to inspect git working tree status');
+  }
+  const lines = (result.stdout || '').split('\n').filter((line) => line.length > 0);
+  const significant = lines.filter((line) => {
+    const pathPart = (line.length > 3 ? line.slice(3) : '').trim();
+    if (!pathPart) return false;
+    if (pathPart === LOCK_FILE_RELATIVE) return false;
+    if (pathPart.startsWith(`${LOCK_FILE_RELATIVE} -> `)) return false;
+    if (pathPart.endsWith(` -> ${LOCK_FILE_RELATIVE}`)) return false;
+    return true;
+  });
+  return significant.length > 0;
+}
+
+function ensureOriginBaseRef(repoRoot, baseBranch) {
+  const fetch = gitRun(repoRoot, ['fetch', 'origin', baseBranch, '--quiet'], { allowFailure: true });
+  if (fetch.status !== 0) {
+    throw new Error(
+      `Unable to fetch origin/${baseBranch}. Ensure remote 'origin' exists and branch '${baseBranch}' is available.`,
+    );
+  }
+  const hasRemoteBase = gitRun(repoRoot, ['show-ref', '--verify', '--quiet', `refs/remotes/origin/${baseBranch}`], {
+    allowFailure: true,
+  });
+  if (hasRemoteBase.status !== 0) {
+    throw new Error(`Remote base branch not found: origin/${baseBranch}`);
+  }
+}
+
+function aheadBehind(repoRoot, branchRef, baseRef) {
+  const result = gitRun(repoRoot, ['rev-list', '--left-right', '--count', `${branchRef}...${baseRef}`], {
+    allowFailure: true,
+  });
+  if (result.status !== 0) {
+    throw new Error(`Unable to compute ahead/behind for ${branchRef} vs ${baseRef}`);
+  }
+  const parts = (result.stdout || '').trim().split(/\s+/).filter(Boolean);
+  const ahead = Number.parseInt(parts[0] || '0', 10);
+  const behind = Number.parseInt(parts[1] || '0', 10);
+  return { ahead: Number.isFinite(ahead) ? ahead : 0, behind: Number.isFinite(behind) ? behind : 0 };
+}
+
+function lockRegistryStatus(repoRoot) {
+  const result = gitRun(repoRoot, ['status', '--porcelain', '--', LOCK_FILE_RELATIVE], { allowFailure: true });
+  if (result.status !== 0) {
+    return { dirty: false, untracked: false };
+  }
+  const lines = (result.stdout || '').split('\n').filter((line) => line.length > 0);
+  if (lines.length === 0) {
+    return { dirty: false, untracked: false };
+  }
+  const untracked = lines.some((line) => line.startsWith('??'));
+  return { dirty: true, untracked };
+}
+
+function parseSyncArgs(rawArgs) {
+  const options = {
+    target: process.cwd(),
+    check: false,
+    base: '',
+    strategy: '',
+    ffOnly: false,
+    dryRun: false,
+    json: false,
+    allAgentBranches: false,
+    allowNonAgent: false,
+    allowDirty: false,
+  };
+
+  for (let index = 0; index < rawArgs.length; index += 1) {
+    const arg = rawArgs[index];
+    if (arg === '--target') {
+      const next = rawArgs[index + 1];
+      if (!next) {
+        throw new Error('--target requires a path value');
+      }
+      options.target = next;
+      index += 1;
+      continue;
+    }
+    if (arg === '--base') {
+      const next = rawArgs[index + 1];
+      if (!next) {
+        throw new Error('--base requires a branch value');
+      }
+      options.base = next;
+      index += 1;
+      continue;
+    }
+    if (arg === '--strategy') {
+      const next = rawArgs[index + 1];
+      if (!next) {
+        throw new Error('--strategy requires a value (rebase|merge)');
+      }
+      options.strategy = next;
+      index += 1;
+      continue;
+    }
+    if (arg === '--check') {
+      options.check = true;
+      continue;
+    }
+    if (arg === '--ff-only') {
+      options.ffOnly = true;
+      continue;
+    }
+    if (arg === '--dry-run') {
+      options.dryRun = true;
+      continue;
+    }
+    if (arg === '--json') {
+      options.json = true;
+      continue;
+    }
+    if (arg === '--all-agent-branches') {
+      options.allAgentBranches = true;
+      continue;
+    }
+    if (arg === '--allow-non-agent') {
+      options.allowNonAgent = true;
+      continue;
+    }
+    if (arg === '--allow-dirty') {
+      options.allowDirty = true;
+      continue;
+    }
+    throw new Error(`Unknown option: ${arg}`);
+  }
+
+  if (!options.target) {
+    throw new Error('--target requires a path value');
+  }
+
+  return options;
+}
+
+function syncOperation(repoRoot, strategy, baseRef, ffOnly) {
+  if (strategy === 'rebase') {
+    if (ffOnly) {
+      throw new Error('--ff-only is only supported with --strategy merge');
+    }
+    const rebased = run('git', ['-C', repoRoot, 'rebase', baseRef], { stdio: 'pipe' });
+    if (rebased.status !== 0) {
+      const details = (rebased.stderr || rebased.stdout || '').trim();
+      const gitDir = path.join(repoRoot, '.git');
+      const rebaseActive = fs.existsSync(path.join(gitDir, 'rebase-merge')) || fs.existsSync(path.join(gitDir, 'rebase-apply'));
+      const help = rebaseActive
+        ? '\nResolve conflicts, then run: git rebase --continue\nOr abort: git rebase --abort'
+        : '';
+      throw new Error(`Sync failed during rebase onto ${baseRef}.${details ? `\n${details}` : ''}${help}`);
+    }
+    return;
+  }
+
+  const mergeArgs = ['-C', repoRoot, 'merge', '--no-edit'];
+  if (ffOnly) {
+    mergeArgs.push('--ff-only');
+  }
+  mergeArgs.push(baseRef);
+  const merged = run('git', mergeArgs, { stdio: 'pipe' });
+  if (merged.status !== 0) {
+    const details = (merged.stderr || merged.stdout || '').trim();
+    const gitDir = path.join(repoRoot, '.git');
+    const mergeActive = fs.existsSync(path.join(gitDir, 'MERGE_HEAD'));
+    const help = mergeActive ? '\nResolve conflicts, then run: git commit\nOr abort: git merge --abort' : '';
+    throw new Error(`Sync failed during merge from ${baseRef}.${details ? `\n${details}` : ''}${help}`);
+  }
 }
 
 function isInteractiveTerminal() {
@@ -1084,6 +1306,165 @@ function copyPrompt() {
   process.exitCode = 0;
 }
 
+function sync(rawArgs) {
+  const options = parseSyncArgs(rawArgs);
+  const repoRoot = resolveRepoRoot(options.target);
+  const baseBranch = resolveBaseBranch(repoRoot, options.base);
+  const strategy = resolveSyncStrategy(repoRoot, options.strategy);
+  const baseRef = `origin/${baseBranch}`;
+
+  ensureOriginBaseRef(repoRoot, baseBranch);
+
+  if (options.allAgentBranches) {
+    const refs = gitRun(repoRoot, ['for-each-ref', '--format=%(refname:short)', 'refs/heads/agent/*'], { allowFailure: true });
+    if (refs.status !== 0) {
+      throw new Error('Unable to list local agent branches');
+    }
+    const branches = (refs.stdout || '').split('\n').map((item) => item.trim()).filter(Boolean);
+    const rows = branches.map((branch) => {
+      const counts = aheadBehind(repoRoot, branch, baseRef);
+      return {
+        branch,
+        base: baseRef,
+        ahead: counts.ahead,
+        behind: counts.behind,
+        syncRequired: counts.behind > 0,
+      };
+    });
+
+    if (options.json) {
+      process.stdout.write(`${JSON.stringify({
+        repoRoot,
+        base: baseRef,
+        branchCount: rows.length,
+        rows,
+      }, null, 2)}\n`);
+    } else {
+      console.log(`[${TOOL_NAME}] Sync report target: ${repoRoot}`);
+      console.log(`[${TOOL_NAME}] Base: ${baseRef}`);
+      if (rows.length === 0) {
+        console.log(`[${TOOL_NAME}] No local agent branches found.`);
+      } else {
+        for (const row of rows) {
+          console.log(`  - ${row.branch} | ahead ${row.ahead} | behind ${row.behind} | syncRequired=${row.syncRequired}`);
+        }
+      }
+    }
+
+    const hasBehind = rows.some((row) => row.behind > 0);
+    process.exitCode = options.check && hasBehind ? 1 : 0;
+    return;
+  }
+
+  const branch = currentBranchName(repoRoot);
+  if (!options.allowNonAgent && !branch.startsWith('agent/')) {
+    throw new Error(`sync is limited to agent/* branches by default (current: ${branch}). Use --allow-non-agent to override.`);
+  }
+
+  const dirty = workingTreeIsDirty(repoRoot);
+  if (!options.check && !options.allowDirty && dirty) {
+    throw new Error('Sync blocked: working tree is not clean. Commit or stash changes first, or pass --allow-dirty.');
+  }
+
+  const before = aheadBehind(repoRoot, branch, baseRef);
+
+  const payload = {
+    repoRoot,
+    branch,
+    base: baseRef,
+    strategy,
+    dirty,
+    aheadBefore: before.ahead,
+    behindBefore: before.behind,
+    syncRequired: before.behind > 0,
+    status: 'checked',
+  };
+
+  if (options.check) {
+    if (options.json) {
+      process.stdout.write(`${JSON.stringify(payload, null, 2)}\n`);
+    } else {
+      console.log(`[${TOOL_NAME}] Sync check target: ${repoRoot}`);
+      console.log(`[${TOOL_NAME}] Branch: ${branch}`);
+      console.log(`[${TOOL_NAME}] Base: ${baseRef}`);
+      console.log(`[${TOOL_NAME}] Ahead: ${before.ahead}`);
+      console.log(`[${TOOL_NAME}] Behind: ${before.behind}`);
+      console.log(`[${TOOL_NAME}] Sync required: ${before.behind > 0 ? 'yes' : 'no'}`);
+    }
+    process.exitCode = before.behind > 0 ? 1 : 0;
+    return;
+  }
+
+  if (before.behind === 0) {
+    const result = { ...payload, status: 'no-op', aheadAfter: before.ahead, behindAfter: before.behind };
+    if (options.json) {
+      process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
+    } else {
+      console.log(`[${TOOL_NAME}] Branch '${branch}' is already up to date with ${baseRef}.`);
+    }
+    process.exitCode = 0;
+    return;
+  }
+
+  if (options.dryRun) {
+    const result = { ...payload, status: 'dry-run' };
+    if (options.json) {
+      process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
+    } else {
+      console.log(`[${TOOL_NAME}] Dry run: would sync '${branch}' onto ${baseRef} via ${strategy}.`);
+    }
+    process.exitCode = 0;
+    return;
+  }
+
+  const lockPath = path.join(repoRoot, LOCK_FILE_RELATIVE);
+  const lockState = lockRegistryStatus(repoRoot);
+  let lockBackup = null;
+  if (lockState.dirty && fs.existsSync(lockPath)) {
+    lockBackup = fs.readFileSync(lockPath, 'utf8');
+  }
+
+  if (lockState.dirty) {
+    if (lockState.untracked) {
+      fs.rmSync(lockPath, { force: true });
+    } else {
+      const resetLock = gitRun(repoRoot, ['checkout', '--', LOCK_FILE_RELATIVE], { allowFailure: true });
+      if (resetLock.status !== 0) {
+        throw new Error(`Unable to temporarily reset ${LOCK_FILE_RELATIVE} before sync`);
+      }
+    }
+  }
+
+  try {
+    syncOperation(repoRoot, strategy, baseRef, options.ffOnly);
+  } finally {
+    if (lockBackup !== null) {
+      fs.mkdirSync(path.dirname(lockPath), { recursive: true });
+      fs.writeFileSync(lockPath, lockBackup, 'utf8');
+    }
+  }
+  const after = aheadBehind(repoRoot, branch, baseRef);
+  const result = {
+    ...payload,
+    status: 'success',
+    aheadAfter: after.ahead,
+    behindAfter: after.behind,
+  };
+
+  if (options.json) {
+    process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
+  } else {
+    console.log(`[${TOOL_NAME}] Sync target: ${repoRoot}`);
+    console.log(`[${TOOL_NAME}] Branch: ${branch}`);
+    console.log(`[${TOOL_NAME}] Base: ${baseRef}`);
+    console.log(`[${TOOL_NAME}] Strategy: ${strategy}`);
+    console.log(`[${TOOL_NAME}] Behind before sync: ${before.behind}`);
+    console.log(`[${TOOL_NAME}] Result: success (behind now: ${after.behind})`);
+  }
+
+  process.exitCode = 0;
+}
+
 function protect(rawArgs) {
   const parsed = parseTargetFlag(rawArgs, process.cwd());
   const [subcommand, ...rest] = parsed.args;
@@ -1244,6 +1625,11 @@ function main() {
 
   if (command === 'protect') {
     protect(rest);
+    return;
+  }
+
+  if (command === 'sync') {
+    sync(rest);
     return;
   }
 

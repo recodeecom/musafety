@@ -2,6 +2,7 @@
 set -euo pipefail
 
 BASE_BRANCH="dev"
+BASE_BRANCH_EXPLICIT=0
 SOURCE_BRANCH=""
 PUSH_ENABLED=1
 DELETE_REMOTE_BRANCH=1
@@ -10,6 +11,7 @@ while [[ $# -gt 0 ]]; do
   case "$1" in
     --base)
       BASE_BRANCH="${2:-}"
+      BASE_BRANCH_EXPLICIT=1
       shift 2
       ;;
     --branch)
@@ -40,6 +42,13 @@ fi
 repo_root="$(git rev-parse --show-toplevel)"
 current_worktree="$(pwd -P)"
 
+if [[ "$BASE_BRANCH_EXPLICIT" -eq 0 ]]; then
+  configured_base="$(git -C "$repo_root" config --get multiagent.baseBranch || true)"
+  if [[ -n "$configured_base" ]]; then
+    BASE_BRANCH="$configured_base"
+  fi
+fi
+
 if [[ -z "$SOURCE_BRANCH" ]]; then
   SOURCE_BRANCH="$(git rev-parse --abbrev-ref HEAD)"
 fi
@@ -65,7 +74,8 @@ get_worktree_for_branch() {
 
 is_clean_worktree() {
   local wt="$1"
-  git -C "$wt" diff --quiet && git -C "$wt" diff --cached --quiet
+  git -C "$wt" diff --quiet -- . ":(exclude).omx/state/agent-file-locks.json" \
+    && git -C "$wt" diff --cached --quiet -- . ":(exclude).omx/state/agent-file-locks.json"
 }
 
 source_worktree="$(get_worktree_for_branch "$SOURCE_BRANCH")"
@@ -90,6 +100,29 @@ start_ref="$BASE_BRANCH"
 if git -C "$repo_root" show-ref --verify --quiet "refs/remotes/origin/${BASE_BRANCH}"; then
   git -C "$repo_root" fetch origin "$BASE_BRANCH" --quiet
   start_ref="origin/${BASE_BRANCH}"
+fi
+
+require_before_finish_raw="$(git -C "$repo_root" config --get multiagent.sync.requireBeforeFinish || true)"
+if [[ -z "$require_before_finish_raw" ]]; then
+  require_before_finish_raw="true"
+fi
+require_before_finish="$(printf '%s' "$require_before_finish_raw" | tr '[:upper:]' '[:lower:]')"
+should_require_sync=0
+case "$require_before_finish" in
+  1|true|yes|on) should_require_sync=1 ;;
+  0|false|no|off) should_require_sync=0 ;;
+  *) should_require_sync=1 ;;
+esac
+
+if [[ "$should_require_sync" -eq 1 ]] && git -C "$repo_root" show-ref --verify --quiet "refs/remotes/origin/${BASE_BRANCH}"; then
+  behind_count="$(git -C "$repo_root" rev-list --left-right --count "${SOURCE_BRANCH}...origin/${BASE_BRANCH}" 2>/dev/null | awk '{print $2}')"
+  behind_count="${behind_count:-0}"
+  if [[ "$behind_count" -gt 0 ]]; then
+    echo "[agent-sync-guard] Branch '${SOURCE_BRANCH}' is behind origin/${BASE_BRANCH} by ${behind_count} commit(s)." >&2
+    echo "[agent-sync-guard] Run: musafety sync --base ${BASE_BRANCH}" >&2
+    echo "[agent-sync-guard] Then retry: bash scripts/agent-branch-finish.sh --branch \"${SOURCE_BRANCH}\"" >&2
+    exit 1
+  fi
 fi
 
 integration_worktree="${repo_root}/.omx/agent-worktrees/__integrate-${BASE_BRANCH//\//__}-$(date +%Y%m%d-%H%M%S)"

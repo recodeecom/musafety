@@ -77,6 +77,59 @@ function seedCommit(repoDir) {
   assert.equal(result.status, 0, result.stderr);
 }
 
+function attachOriginRemote(repoDir) {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'musafety-origin-'));
+  const originPath = path.join(tempDir, 'origin.git');
+
+  let result = runCmd('git', ['init', '--bare', originPath], repoDir);
+  assert.equal(result.status, 0, result.stderr);
+
+  result = runCmd('git', ['remote', 'add', 'origin', originPath], repoDir);
+  assert.equal(result.status, 0, result.stderr);
+
+  result = runCmd('git', ['push', '-u', 'origin', 'dev'], repoDir);
+  assert.equal(result.status, 0, result.stderr);
+
+  return originPath;
+}
+
+function commitFile(repoDir, relativePath, contents, message) {
+  const filePath = path.join(repoDir, relativePath);
+  fs.mkdirSync(path.dirname(filePath), { recursive: true });
+  fs.writeFileSync(filePath, contents, 'utf8');
+
+  const currentBranch = runCmd('git', ['branch', '--show-current'], repoDir);
+  assert.equal(currentBranch.status, 0, currentBranch.stderr);
+  const branchName = currentBranch.stdout.trim();
+  const lockScriptPath = path.join(repoDir, 'scripts', 'agent-file-locks.py');
+  if (branchName.startsWith('agent/') && fs.existsSync(lockScriptPath)) {
+    const claim = runCmd(
+      'python3',
+      ['scripts/agent-file-locks.py', 'claim', '--branch', branchName, relativePath],
+      repoDir,
+    );
+    assert.equal(claim.status, 0, claim.stderr || claim.stdout);
+  }
+
+  let result = runCmd('git', ['add', relativePath], repoDir);
+  assert.equal(result.status, 0, result.stderr);
+  const commitEnv = ['dev', 'main', 'master'].includes(branchName)
+    ? { ALLOW_COMMIT_ON_PROTECTED_BRANCH: '1' }
+    : {};
+  result = runCmd('git', ['commit', '-m', message], repoDir, commitEnv);
+  assert.equal(result.status, 0, result.stderr);
+}
+
+function aheadBehindCounts(repoDir, branchRef, baseRef) {
+  const result = runCmd('git', ['rev-list', '--left-right', '--count', `${branchRef}...${baseRef}`], repoDir);
+  assert.equal(result.status, 0, result.stderr);
+  const [aheadRaw, behindRaw] = result.stdout.trim().split(/\s+/);
+  return {
+    ahead: Number.parseInt(aheadRaw || '0', 10),
+    behind: Number.parseInt(behindRaw || '0', 10),
+  };
+}
+
 test('setup provisions workflow files and repo config', () => {
   const repoDir = initRepo();
 
@@ -103,6 +156,8 @@ test('setup provisions workflow files and repo config', () => {
   assert.equal(packageJson.scripts['agent:branch:start'], 'bash ./scripts/agent-branch-start.sh');
   assert.equal(packageJson.scripts['agent:plan:init'], 'bash ./scripts/openspec/init-plan-workspace.sh');
   assert.equal(packageJson.scripts['agent:protect:list'], 'musafety protect list');
+  assert.equal(packageJson.scripts['agent:branch:sync'], 'musafety sync');
+  assert.equal(packageJson.scripts['agent:branch:sync:check'], 'musafety sync --check');
   assert.equal(packageJson.scripts['agent:safety:setup'], 'musafety setup');
   assert.equal(packageJson.scripts['agent:cleanup'], 'bash ./scripts/agent-worktree-prune.sh --base dev');
 
@@ -191,6 +246,91 @@ test('pre-commit blocks protected branch commits even from VS Code Source Contro
   );
   assert.equal(hookResult.status, 1, hookResult.stderr || hookResult.stdout);
   assert.match(hookResult.stderr, /Direct commits on protected branches are blocked/);
+});
+
+test('sync command rebases current agent branch onto latest origin/dev', () => {
+  const repoDir = initRepo();
+  seedCommit(repoDir);
+  attachOriginRemote(repoDir);
+
+  let result = runNode(['setup', '--target', repoDir, '--no-global-install'], repoDir);
+  assert.equal(result.status, 0, result.stderr || result.stdout);
+  result = runCmd('git', ['add', '.'], repoDir);
+  assert.equal(result.status, 0, result.stderr);
+  result = runCmd('git', ['commit', '-m', 'apply musafety setup'], repoDir, {
+    ALLOW_COMMIT_ON_PROTECTED_BRANCH: '1',
+  });
+  assert.equal(result.status, 0, result.stderr);
+  result = runCmd('git', ['push', 'origin', 'dev'], repoDir);
+  assert.equal(result.status, 0, result.stderr);
+
+  result = runCmd('git', ['checkout', '-b', 'agent/test-sync'], repoDir);
+  assert.equal(result.status, 0, result.stderr);
+  commitFile(repoDir, 'agent.txt', 'agent change\n', 'agent change');
+
+  result = runCmd('git', ['checkout', 'dev'], repoDir);
+  assert.equal(result.status, 0, result.stderr);
+  commitFile(repoDir, 'dev.txt', 'dev change\n', 'dev change');
+  result = runCmd('git', ['push', 'origin', 'dev'], repoDir);
+  assert.equal(result.status, 0, result.stderr);
+
+  result = runCmd('git', ['checkout', 'agent/test-sync'], repoDir);
+  assert.equal(result.status, 0, result.stderr);
+
+  const checkBefore = runNode(['sync', '--check', '--target', repoDir], repoDir);
+  assert.equal(checkBefore.status, 1, checkBefore.stderr || checkBefore.stdout);
+  assert.match(checkBefore.stdout, /Sync required: yes/);
+
+  const syncResult = runNode(['sync', '--target', repoDir], repoDir);
+  assert.equal(syncResult.status, 0, syncResult.stderr || syncResult.stdout);
+  assert.match(syncResult.stdout, /Result: success/);
+
+  const counts = aheadBehindCounts(repoDir, 'agent/test-sync', 'origin/dev');
+  assert.equal(counts.behind, 0, 'agent branch should be fully synced with origin/dev');
+
+  const checkAfter = runNode(['sync', '--check', '--target', repoDir, '--json'], repoDir);
+  assert.equal(checkAfter.status, 0, checkAfter.stderr || checkAfter.stdout);
+  const payload = JSON.parse(checkAfter.stdout);
+  assert.equal(payload.behindBefore, 0);
+});
+
+test('agent-branch-finish blocks when source branch is behind origin/dev', () => {
+  const repoDir = initRepo();
+  seedCommit(repoDir);
+  attachOriginRemote(repoDir);
+
+  let result = runNode(['setup', '--target', repoDir, '--no-global-install'], repoDir);
+  assert.equal(result.status, 0, result.stderr || result.stdout);
+  result = runCmd('git', ['add', '.'], repoDir);
+  assert.equal(result.status, 0, result.stderr);
+  result = runCmd('git', ['commit', '-m', 'apply musafety setup'], repoDir, {
+    ALLOW_COMMIT_ON_PROTECTED_BRANCH: '1',
+  });
+  assert.equal(result.status, 0, result.stderr);
+  result = runCmd('git', ['push', 'origin', 'dev'], repoDir);
+  assert.equal(result.status, 0, result.stderr);
+
+  result = runCmd('git', ['checkout', '-b', 'agent/test-finish-sync-guard'], repoDir);
+  assert.equal(result.status, 0, result.stderr);
+  commitFile(repoDir, 'agent-finish.txt', 'agent side\n', 'agent side change');
+
+  result = runCmd('git', ['checkout', 'dev'], repoDir);
+  assert.equal(result.status, 0, result.stderr);
+  commitFile(repoDir, 'dev-ahead.txt', 'dev ahead\n', 'dev ahead');
+  result = runCmd('git', ['push', 'origin', 'dev'], repoDir);
+  assert.equal(result.status, 0, result.stderr);
+
+  result = runCmd('git', ['checkout', 'agent/test-finish-sync-guard'], repoDir);
+  assert.equal(result.status, 0, result.stderr);
+
+  const finish = runCmd(
+    'bash',
+    ['scripts/agent-branch-finish.sh', '--branch', 'agent/test-finish-sync-guard'],
+    repoDir,
+  );
+  assert.equal(finish.status, 1, finish.stderr || finish.stdout);
+  assert.match(finish.stderr, /agent-sync-guard/);
+  assert.match(finish.stderr, /musafety sync --base dev/);
 });
 
 test('OpenSpec plan workspace scaffold creates expected role/task structure', () => {

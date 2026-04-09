@@ -103,6 +103,10 @@ Use this exact checklist to setup multi-agent safety in this repository for Code
 
 6) Optional: protect extra branches:
    musafety protect add release staging
+
+7) Optional: sync your current agent branch with latest dev:
+   musafety sync --check
+   musafety sync
 ```
 
 ## Basic commands
@@ -115,6 +119,8 @@ musafety protect add <branch...> [--target <path>]
 musafety protect remove <branch...> [--target <path>]
 musafety protect set <branch...> [--target <path>]
 musafety protect reset [--target <path>]
+musafety sync --check [--target <path>] [--base <branch>] [--json]
+musafety sync [--target <path>] [--base <branch>] [--strategy rebase|merge] [--ff-only]
 bash scripts/agent-worktree-prune.sh --base dev   # manual stale worktree cleanup
 bash scripts/openspec/init-plan-workspace.sh <plan-slug>   # optional OpenSpec plan scaffold
 ```
@@ -132,6 +138,28 @@ musafety install [--target <path>] [--force] [--skip-agents] [--skip-package-jso
 musafety fix [--target <path>] [--dry-run] [--keep-stale-locks]
 musafety scan [--target <path>] [--json]
 ```
+
+## Keep agent branches synced with dev
+
+Use sync checks before finishing agent branches:
+
+```sh
+musafety sync --check
+musafety sync
+```
+
+Defaults:
+- base branch: `dev` (or `multiagent.baseBranch`)
+- strategy: `rebase` (or `multiagent.sync.strategy`)
+
+Useful variants:
+
+```sh
+musafety sync --strategy merge
+musafety sync --all-agent-branches --check
+```
+
+By default, `agent-branch-finish.sh` also blocks finishing when your branch is behind `origin/<base>` and points to `musafety sync`.
 
 ## Configure protected branches
 
