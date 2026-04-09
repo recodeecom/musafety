@@ -7,6 +7,9 @@ const cp = require('node:child_process');
 const packageJsonPath = path.resolve(__dirname, '..', 'package.json');
 const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8'));
 
+const TOOL_NAME = 'musafety';
+const LEGACY_NAME = 'multiagent-safety';
+
 const TEMPLATE_ROOT = path.resolve(__dirname, '..', 'templates');
 
 const TEMPLATE_FILES = [
@@ -36,20 +39,32 @@ const CRITICAL_GUARDRAIL_PATHS = new Set([
 const LOCK_FILE_RELATIVE = '.omx/state/agent-file-locks.json';
 const AGENTS_MARKER_START = '<!-- multiagent-safety:START -->';
 
+const AI_SETUP_PROMPT = `Setup multi-agent safety in this repository using musafety.
+
+Steps:
+1) Run: musafety setup
+2) If setup reports warnings/errors, run: musafety fix && musafety scan
+3) Confirm output is clean and print next commands for agent usage:
+   - bash scripts/agent-branch-start.sh "task" "agent-name"
+   - python3 scripts/agent-file-locks.py claim --branch "$(git rev-parse --abbrev-ref HEAD)" <file...>
+   - bash scripts/agent-branch-finish.sh --branch "$(git rev-parse --abbrev-ref HEAD)"
+`;
+
 function usage() {
-  console.log(`multiagent-safety v${packageJson.version}
+  console.log(`${TOOL_NAME} v${packageJson.version}
 
-Usage:
-  multiagent-safety install [--target <path>] [--force] [--skip-agents] [--skip-package-json] [--dry-run]
-  multiagent-safety scan [--target <path>] [--json]
-  multiagent-safety print-agents-snippet
-  multiagent-safety --help
+Simple usage (recommended):
+  ${TOOL_NAME} setup [--target <path>] [--dry-run]
+  ${TOOL_NAME} copy-prompt
 
-Examples:
-  multiagent-safety install
-  multiagent-safety scan
-  multiagent-safety install --target ~/projects/my-repo
-  npm i -g multiagent-safety && multiagent-safety install`);
+Advanced:
+  ${TOOL_NAME} install [--target <path>] [--force] [--skip-agents] [--skip-package-json] [--dry-run]
+  ${TOOL_NAME} fix [--target <path>] [--dry-run] [--keep-stale-locks] [--skip-agents] [--skip-package-json]
+  ${TOOL_NAME} scan [--target <path>] [--json]
+
+Notes:
+  - Running ${TOOL_NAME} with no command defaults to: ${TOOL_NAME} setup
+  - ${LEGACY_NAME} command name is still supported as an alias`);
 }
 
 function run(cmd, args, options = {}) {
@@ -95,6 +110,13 @@ function ensureParentDir(filePath, dryRun) {
   fs.mkdirSync(path.dirname(filePath), { recursive: true });
 }
 
+function ensureExecutable(destinationPath, relativePath, dryRun) {
+  if (dryRun) return;
+  if (EXECUTABLE_RELATIVE_PATHS.has(relativePath)) {
+    fs.chmodSync(destinationPath, 0o755);
+  }
+}
+
 function copyTemplateFile(repoRoot, relativeTemplatePath, force, dryRun) {
   const sourcePath = path.join(TEMPLATE_ROOT, relativeTemplatePath);
   const destinationRelativePath = toDestinationPath(relativeTemplatePath);
@@ -106,9 +128,7 @@ function copyTemplateFile(repoRoot, relativeTemplatePath, force, dryRun) {
   if (destinationExists) {
     const existingContent = fs.readFileSync(destinationPath, 'utf8');
     if (existingContent === sourceContent) {
-      if (!dryRun && EXECUTABLE_RELATIVE_PATHS.has(destinationRelativePath)) {
-        fs.chmodSync(destinationPath, 0o755);
-      }
+      ensureExecutable(destinationPath, destinationRelativePath, dryRun);
       return { status: 'unchanged', file: destinationRelativePath };
     }
     if (!force) {
@@ -119,42 +139,103 @@ function copyTemplateFile(repoRoot, relativeTemplatePath, force, dryRun) {
   }
 
   ensureParentDir(destinationPath, dryRun);
-
   if (!dryRun) {
     fs.writeFileSync(destinationPath, sourceContent, 'utf8');
-    if (EXECUTABLE_RELATIVE_PATHS.has(destinationRelativePath)) {
-      fs.chmodSync(destinationPath, 0o755);
-    }
+    ensureExecutable(destinationPath, destinationRelativePath, dryRun);
   }
 
   return { status: destinationExists ? 'overwritten' : 'created', file: destinationRelativePath };
 }
 
+function ensureTemplateFilePresent(repoRoot, relativeTemplatePath, dryRun) {
+  const sourcePath = path.join(TEMPLATE_ROOT, relativeTemplatePath);
+  const destinationRelativePath = toDestinationPath(relativeTemplatePath);
+  const destinationPath = path.join(repoRoot, destinationRelativePath);
+  const sourceContent = fs.readFileSync(sourcePath, 'utf8');
+
+  if (fs.existsSync(destinationPath)) {
+    const existingContent = fs.readFileSync(destinationPath, 'utf8');
+    if (existingContent === sourceContent) {
+      ensureExecutable(destinationPath, destinationRelativePath, dryRun);
+      return { status: 'unchanged', file: destinationRelativePath };
+    }
+
+    // In fix mode, avoid silently replacing local customizations.
+    return { status: 'skipped-conflict', file: destinationRelativePath };
+  }
+
+  ensureParentDir(destinationPath, dryRun);
+  if (!dryRun) {
+    fs.writeFileSync(destinationPath, sourceContent, 'utf8');
+    ensureExecutable(destinationPath, destinationRelativePath, dryRun);
+  }
+
+  return { status: 'created', file: destinationRelativePath };
+}
+
+function lockFilePath(repoRoot) {
+  return path.join(repoRoot, LOCK_FILE_RELATIVE);
+}
+
 function ensureLockRegistry(repoRoot, dryRun) {
-  const relativePath = LOCK_FILE_RELATIVE;
-  const absolutePath = path.join(repoRoot, relativePath);
+  const absolutePath = lockFilePath(repoRoot);
   if (fs.existsSync(absolutePath)) {
-    return { status: 'unchanged', file: relativePath };
+    return { status: 'unchanged', file: LOCK_FILE_RELATIVE };
   }
 
   if (!dryRun) {
     fs.mkdirSync(path.dirname(absolutePath), { recursive: true });
     fs.writeFileSync(absolutePath, JSON.stringify({ locks: {} }, null, 2) + '\n', 'utf8');
   }
-  return { status: 'created', file: relativePath };
+
+  return { status: 'created', file: LOCK_FILE_RELATIVE };
+}
+
+function lockStateOrError(repoRoot) {
+  const lockPath = lockFilePath(repoRoot);
+  if (!fs.existsSync(lockPath)) {
+    return { ok: false, error: `${LOCK_FILE_RELATIVE} is missing` };
+  }
+
+  try {
+    const parsed = JSON.parse(fs.readFileSync(lockPath, 'utf8'));
+    if (!parsed || typeof parsed !== 'object' || typeof parsed.locks !== 'object' || parsed.locks === null) {
+      return { ok: false, error: `${LOCK_FILE_RELATIVE} has invalid schema (expected { locks: {} })` };
+    }
+
+    // Normalize older schema entries.
+    for (const [filePath, entry] of Object.entries(parsed.locks)) {
+      if (!entry || typeof entry !== 'object') {
+        parsed.locks[filePath] = { branch: '', claimed_at: '', allow_delete: false };
+        continue;
+      }
+      if (!Object.prototype.hasOwnProperty.call(entry, 'allow_delete')) {
+        entry.allow_delete = false;
+      }
+    }
+
+    return { ok: true, raw: parsed, locks: parsed.locks };
+  } catch (error) {
+    return { ok: false, error: `${LOCK_FILE_RELATIVE} is invalid JSON: ${error.message}` };
+  }
+}
+
+function writeLockState(repoRoot, payload, dryRun) {
+  if (dryRun) return;
+  const lockPath = lockFilePath(repoRoot);
+  fs.mkdirSync(path.dirname(lockPath), { recursive: true });
+  fs.writeFileSync(lockPath, JSON.stringify(payload, null, 2) + '\n', 'utf8');
 }
 
 function ensurePackageScripts(repoRoot, dryRun) {
-  const relativePath = 'package.json';
-  const packagePath = path.join(repoRoot, relativePath);
+  const packagePath = path.join(repoRoot, 'package.json');
   if (!fs.existsSync(packagePath)) {
-    return { status: 'skipped', file: relativePath, note: 'package.json not found' };
+    return { status: 'skipped', file: 'package.json', note: 'package.json not found' };
   }
 
-  const content = fs.readFileSync(packagePath, 'utf8');
   let pkg;
   try {
-    pkg = JSON.parse(content);
+    pkg = JSON.parse(fs.readFileSync(packagePath, 'utf8'));
   } catch (error) {
     throw new Error(`Unable to parse package.json in target repo: ${error.message}`);
   }
@@ -167,6 +248,9 @@ function ensurePackageScripts(repoRoot, dryRun) {
     'agent:locks:allow-delete': 'python3 ./scripts/agent-file-locks.py allow-delete',
     'agent:locks:release': 'python3 ./scripts/agent-file-locks.py release',
     'agent:locks:status': 'python3 ./scripts/agent-file-locks.py status',
+    'agent:safety:setup': `${TOOL_NAME} setup`,
+    'agent:safety:scan': `${TOOL_NAME} scan`,
+    'agent:safety:fix': `${TOOL_NAME} fix`,
   };
 
   pkg.scripts = pkg.scripts || {};
@@ -179,31 +263,30 @@ function ensurePackageScripts(repoRoot, dryRun) {
   }
 
   if (!changed) {
-    return { status: 'unchanged', file: relativePath };
+    return { status: 'unchanged', file: 'package.json' };
   }
 
   if (!dryRun) {
     fs.writeFileSync(packagePath, JSON.stringify(pkg, null, 2) + '\n', 'utf8');
   }
 
-  return { status: 'updated', file: relativePath };
+  return { status: 'updated', file: 'package.json' };
 }
 
 function ensureAgentsSnippet(repoRoot, dryRun) {
-  const relativePath = 'AGENTS.md';
-  const agentsPath = path.join(repoRoot, relativePath);
+  const agentsPath = path.join(repoRoot, 'AGENTS.md');
   const snippet = fs.readFileSync(path.join(TEMPLATE_ROOT, 'AGENTS.multiagent-safety.md'), 'utf8').trimEnd();
 
   if (!fs.existsSync(agentsPath)) {
     if (!dryRun) {
       fs.writeFileSync(agentsPath, `# AGENTS\n\n${snippet}\n`, 'utf8');
     }
-    return { status: 'created', file: relativePath };
+    return { status: 'created', file: 'AGENTS.md' };
   }
 
   const existing = fs.readFileSync(agentsPath, 'utf8');
   if (existing.includes(AGENTS_MARKER_START)) {
-    return { status: 'unchanged', file: relativePath };
+    return { status: 'unchanged', file: 'AGENTS.md' };
   }
 
   const separator = existing.endsWith('\n') ? '\n' : '\n\n';
@@ -211,28 +294,24 @@ function ensureAgentsSnippet(repoRoot, dryRun) {
     fs.writeFileSync(agentsPath, `${existing}${separator}${snippet}\n`, 'utf8');
   }
 
-  return { status: 'updated', file: relativePath };
+  return { status: 'updated', file: 'AGENTS.md' };
 }
 
 function configureHooks(repoRoot, dryRun) {
   if (dryRun) {
     return { status: 'would-set', key: 'core.hooksPath', value: '.githooks' };
   }
+
   const result = run('git', ['-C', repoRoot, 'config', 'core.hooksPath', '.githooks']);
   if (result.status !== 0) {
     throw new Error(`Failed to set git hooksPath: ${(result.stderr || '').trim()}`);
   }
+
   return { status: 'set', key: 'core.hooksPath', value: '.githooks' };
 }
 
-function parseInstallArgs(rawArgs) {
-  const options = {
-    target: process.cwd(),
-    force: false,
-    skipAgents: false,
-    skipPackageJson: false,
-    dryRun: false,
-  };
+function parseCommonArgs(rawArgs, defaults) {
+  const options = { ...defaults };
 
   for (let index = 0; index < rawArgs.length; index += 1) {
     const arg = rawArgs[index];
@@ -241,8 +320,8 @@ function parseInstallArgs(rawArgs) {
       index += 1;
       continue;
     }
-    if (arg === '--force') {
-      options.force = true;
+    if (arg === '--dry-run') {
+      options.dryRun = true;
       continue;
     }
     if (arg === '--skip-agents') {
@@ -253,37 +332,19 @@ function parseInstallArgs(rawArgs) {
       options.skipPackageJson = true;
       continue;
     }
-    if (arg === '--dry-run') {
-      options.dryRun = true;
+    if (arg === '--force') {
+      options.force = true;
       continue;
     }
-    throw new Error(`Unknown option: ${arg}`);
-  }
-
-  if (!options.target) {
-    throw new Error('--target requires a path value');
-  }
-
-  return options;
-}
-
-function parseScanArgs(rawArgs) {
-  const options = {
-    target: process.cwd(),
-    json: false,
-  };
-
-  for (let index = 0; index < rawArgs.length; index += 1) {
-    const arg = rawArgs[index];
-    if (arg === '--target') {
-      options.target = rawArgs[index + 1];
-      index += 1;
+    if (arg === '--keep-stale-locks') {
+      options.dropStaleLocks = false;
       continue;
     }
     if (arg === '--json') {
       options.json = true;
       continue;
     }
+
     throw new Error(`Unknown option: ${arg}`);
   }
 
@@ -294,28 +355,107 @@ function parseScanArgs(rawArgs) {
   return options;
 }
 
-function lockStateOrError(repoRoot) {
-  const lockPath = path.join(repoRoot, LOCK_FILE_RELATIVE);
-  if (!fs.existsSync(lockPath)) {
-    return { ok: false, error: `${LOCK_FILE_RELATIVE} is missing` };
-  }
-  try {
-    const parsed = JSON.parse(fs.readFileSync(lockPath, 'utf8'));
-    if (!parsed || typeof parsed !== 'object' || typeof parsed.locks !== 'object' || parsed.locks === null) {
-      return { ok: false, error: `${LOCK_FILE_RELATIVE} has invalid schema (expected { locks: {} })` };
-    }
-    return { ok: true, locks: parsed.locks };
-  } catch (error) {
-    return { ok: false, error: `${LOCK_FILE_RELATIVE} is invalid JSON: ${error.message}` };
-  }
-}
-
 function gitRefExists(repoRoot, refName) {
   return gitRun(repoRoot, ['show-ref', '--verify', '--quiet', refName], { allowFailure: true }).status === 0;
 }
 
-function runScan(rawArgs) {
-  const options = parseScanArgs(rawArgs);
+function findStaleLockPaths(repoRoot, locks) {
+  const stale = [];
+
+  for (const [filePath, rawEntry] of Object.entries(locks)) {
+    const entry = rawEntry && typeof rawEntry === 'object' ? rawEntry : {};
+    const ownerBranch = String(entry.branch || '');
+
+    const hasOwner = ownerBranch.length > 0;
+    const localRef = hasOwner ? `refs/heads/${ownerBranch}` : null;
+    const remoteRef = hasOwner ? `refs/remotes/origin/${ownerBranch}` : null;
+    const branchExists = hasOwner
+      ? gitRefExists(repoRoot, localRef) || gitRefExists(repoRoot, remoteRef)
+      : false;
+
+    const pathExists = fs.existsSync(path.join(repoRoot, filePath));
+
+    if (!hasOwner || !branchExists || !pathExists) {
+      stale.push(filePath);
+    }
+  }
+
+  return stale;
+}
+
+function runInstallInternal(options) {
+  const repoRoot = resolveRepoRoot(options.target);
+  const operations = [];
+
+  for (const templateFile of TEMPLATE_FILES) {
+    operations.push(copyTemplateFile(repoRoot, templateFile, Boolean(options.force), Boolean(options.dryRun)));
+  }
+
+  operations.push(ensureLockRegistry(repoRoot, Boolean(options.dryRun)));
+
+  if (!options.skipPackageJson) {
+    operations.push(ensurePackageScripts(repoRoot, Boolean(options.dryRun)));
+  }
+
+  if (!options.skipAgents) {
+    operations.push(ensureAgentsSnippet(repoRoot, Boolean(options.dryRun)));
+  }
+
+  const hookResult = configureHooks(repoRoot, Boolean(options.dryRun));
+
+  return { repoRoot, operations, hookResult };
+}
+
+function runFixInternal(options) {
+  const repoRoot = resolveRepoRoot(options.target);
+  const operations = [];
+
+  for (const templateFile of TEMPLATE_FILES) {
+    operations.push(ensureTemplateFilePresent(repoRoot, templateFile, Boolean(options.dryRun)));
+  }
+
+  operations.push(ensureLockRegistry(repoRoot, Boolean(options.dryRun)));
+
+  const lockState = lockStateOrError(repoRoot);
+  if (!lockState.ok) {
+    if (!options.dryRun) {
+      writeLockState(repoRoot, { locks: {} }, false);
+    }
+    operations.push({
+      status: options.dryRun ? 'would-reset' : 'reset',
+      file: LOCK_FILE_RELATIVE,
+      note: 'invalid lock state reset to empty',
+    });
+  } else {
+    const staleLockPaths = options.dropStaleLocks ? findStaleLockPaths(repoRoot, lockState.locks) : [];
+    if (staleLockPaths.length > 0) {
+      const updated = { ...lockState.raw, locks: { ...lockState.locks } };
+      for (const filePath of staleLockPaths) {
+        delete updated.locks[filePath];
+      }
+      writeLockState(repoRoot, updated, Boolean(options.dryRun));
+      operations.push({
+        status: options.dryRun ? 'would-prune' : 'pruned',
+        file: LOCK_FILE_RELATIVE,
+        note: `removed ${staleLockPaths.length} stale lock(s)`,
+      });
+    }
+  }
+
+  if (!options.skipPackageJson) {
+    operations.push(ensurePackageScripts(repoRoot, Boolean(options.dryRun)));
+  }
+
+  if (!options.skipAgents) {
+    operations.push(ensureAgentsSnippet(repoRoot, Boolean(options.dryRun)));
+  }
+
+  const hookResult = configureHooks(repoRoot, Boolean(options.dryRun));
+
+  return { repoRoot, operations, hookResult };
+}
+
+function runScanInternal(options) {
   const repoRoot = resolveRepoRoot(options.target);
   const findings = [];
 
@@ -406,41 +546,71 @@ function runScan(rawArgs) {
   const warnings = findings.filter((item) => item.level === 'warn');
 
   const currentBranchResult = gitRun(repoRoot, ['rev-parse', '--abbrev-ref', 'HEAD'], { allowFailure: true });
-  const currentBranch = currentBranchResult.status === 0 ? currentBranchResult.stdout.trim() : '(unknown)';
+  const branch = currentBranchResult.status === 0 ? currentBranchResult.stdout.trim() : '(unknown)';
 
-  if (options.json) {
+  return {
+    repoRoot,
+    branch,
+    findings,
+    errors: errors.length,
+    warnings: warnings.length,
+  };
+}
+
+function printOperations(title, payload, dryRun = false) {
+  console.log(`[${TOOL_NAME}] ${title}: ${payload.repoRoot}`);
+  for (const operation of payload.operations) {
+    const note = operation.note ? ` (${operation.note})` : '';
+    console.log(`  - ${operation.status.padEnd(12)} ${operation.file}${note}`);
+  }
+  console.log(
+    `  - hooksPath    ${payload.hookResult.status} ${payload.hookResult.key}=${payload.hookResult.value}`,
+  );
+
+  if (dryRun) {
+    console.log(`[${TOOL_NAME}] Dry run complete. No files were modified.`);
+  }
+}
+
+function printScanResult(scan, json = false) {
+  if (json) {
     process.stdout.write(
       JSON.stringify(
         {
-          repoRoot,
-          branch: currentBranch,
-          errors: errors.length,
-          warnings: warnings.length,
-          findings,
+          repoRoot: scan.repoRoot,
+          branch: scan.branch,
+          errors: scan.errors,
+          warnings: scan.warnings,
+          findings: scan.findings,
         },
         null,
         2,
       ) + '\n',
     );
-  } else {
-    console.log(`[multiagent-safety] Scan target: ${repoRoot}`);
-    console.log(`[multiagent-safety] Branch: ${currentBranch}`);
-    if (findings.length === 0) {
-      console.log('[multiagent-safety] ✅ No safety issues detected.');
-    } else {
-      for (const item of findings) {
-        const target = item.path ? ` (${item.path})` : '';
-        console.log(`[${item.level.toUpperCase()}] ${item.code}${target}: ${item.message}`);
-      }
-      console.log(`[multiagent-safety] Summary: ${errors.length} error(s), ${warnings.length} warning(s).`);
-    }
+    return;
   }
 
-  if (errors.length > 0) {
+  console.log(`[${TOOL_NAME}] Scan target: ${scan.repoRoot}`);
+  console.log(`[${TOOL_NAME}] Branch: ${scan.branch}`);
+
+  if (scan.findings.length === 0) {
+    console.log(`[${TOOL_NAME}] ✅ No safety issues detected.`);
+    return;
+  }
+
+  for (const item of scan.findings) {
+    const target = item.path ? ` (${item.path})` : '';
+    console.log(`[${item.level.toUpperCase()}] ${item.code}${target}: ${item.message}`);
+  }
+  console.log(`[${TOOL_NAME}] Summary: ${scan.errors} error(s), ${scan.warnings} warning(s).`);
+}
+
+function setExitCodeFromScan(scan) {
+  if (scan.errors > 0) {
     process.exitCode = 2;
     return;
   }
-  if (warnings.length > 0) {
+  if (scan.warnings > 0) {
     process.exitCode = 1;
     return;
   }
@@ -448,40 +618,90 @@ function runScan(rawArgs) {
 }
 
 function install(rawArgs) {
-  const options = parseInstallArgs(rawArgs);
-  const repoRoot = resolveRepoRoot(options.target);
+  const options = parseCommonArgs(rawArgs, {
+    target: process.cwd(),
+    force: false,
+    skipAgents: false,
+    skipPackageJson: false,
+    dryRun: false,
+  });
 
-  const operations = [];
+  const payload = runInstallInternal(options);
+  printOperations('Install target', payload, options.dryRun);
 
-  for (const templateFile of TEMPLATE_FILES) {
-    operations.push(copyTemplateFile(repoRoot, templateFile, options.force, options.dryRun));
+  if (!options.dryRun) {
+    console.log(`[${TOOL_NAME}] Installed. Next step: ${TOOL_NAME} setup`);
   }
 
-  operations.push(ensureLockRegistry(repoRoot, options.dryRun));
+  process.exitCode = 0;
+}
 
-  if (!options.skipPackageJson) {
-    operations.push(ensurePackageScripts(repoRoot, options.dryRun));
+function fix(rawArgs) {
+  const options = parseCommonArgs(rawArgs, {
+    target: process.cwd(),
+    dropStaleLocks: true,
+    skipAgents: false,
+    skipPackageJson: false,
+    dryRun: false,
+  });
+
+  const payload = runFixInternal(options);
+  printOperations('Fix target', payload, options.dryRun);
+
+  if (!options.dryRun) {
+    console.log(`[${TOOL_NAME}] Repair complete. Next step: ${TOOL_NAME} scan`);
   }
 
-  if (!options.skipAgents) {
-    operations.push(ensureAgentsSnippet(repoRoot, options.dryRun));
-  }
+  process.exitCode = 0;
+}
 
-  const hookResult = configureHooks(repoRoot, options.dryRun);
+function scan(rawArgs) {
+  const options = parseCommonArgs(rawArgs, {
+    target: process.cwd(),
+    json: false,
+  });
 
-  console.log(`[multiagent-safety] Target repo: ${repoRoot}`);
-  for (const operation of operations) {
-    const note = operation.note ? ` (${operation.note})` : '';
-    console.log(`  - ${operation.status.padEnd(10)} ${operation.file}${note}`);
-  }
-  console.log(`  - hooksPath  ${hookResult.status} ${hookResult.key}=${hookResult.value}`);
+  const result = runScanInternal(options);
+  printScanResult(result, options.json);
+  setExitCodeFromScan(result);
+}
+
+function setup(rawArgs) {
+  const options = parseCommonArgs(rawArgs, {
+    target: process.cwd(),
+    force: false,
+    skipAgents: false,
+    skipPackageJson: false,
+    dryRun: false,
+  });
+
+  const installPayload = runInstallInternal(options);
+  printOperations('Setup/install', installPayload, options.dryRun);
+
+  const fixPayload = runFixInternal({
+    target: options.target,
+    dryRun: options.dryRun,
+    dropStaleLocks: true,
+    skipAgents: options.skipAgents,
+    skipPackageJson: options.skipPackageJson,
+  });
+  printOperations('Setup/fix', fixPayload, options.dryRun);
 
   if (options.dryRun) {
-    console.log('[multiagent-safety] Dry run complete. No files were modified.');
-  } else {
-    console.log('[multiagent-safety] Installed multi-agent safety workflow.');
-    console.log('[multiagent-safety] Next step: run `multiagent-safety scan` in the repo.');
+    console.log(`[${TOOL_NAME}] Dry run setup done.`);
+    process.exitCode = 0;
+    return;
   }
+
+  const scanResult = runScanInternal({ target: options.target, json: false });
+  printScanResult(scanResult, false);
+
+  if (scanResult.errors === 0 && scanResult.warnings === 0) {
+    console.log(`[${TOOL_NAME}] ✅ Setup complete.`);
+    console.log(`[${TOOL_NAME}] Copy AI setup prompt with: ${TOOL_NAME} copy-prompt`);
+  }
+
+  setExitCodeFromScan(scanResult);
 }
 
 function printAgentsSnippet() {
@@ -489,31 +709,56 @@ function printAgentsSnippet() {
   process.stdout.write(fs.readFileSync(snippetPath, 'utf8'));
 }
 
+function copyPrompt() {
+  process.stdout.write(AI_SETUP_PROMPT);
+  process.exitCode = 0;
+}
+
 function main() {
   const args = process.argv.slice(2);
 
   if (args.length === 0) {
-    install([]);
+    setup([]);
     return;
   }
 
   const [command, ...rest] = args;
+
   if (command === '--help' || command === '-h' || command === 'help') {
     usage();
     return;
   }
+
   if (command === '--version' || command === '-v' || command === 'version') {
     console.log(packageJson.version);
     return;
   }
+
+  if (command === 'setup') {
+    setup(rest);
+    return;
+  }
+
+  if (command === 'copy-prompt') {
+    copyPrompt();
+    return;
+  }
+
   if (command === 'install') {
     install(rest);
     return;
   }
-  if (command === 'scan') {
-    runScan(rest);
+
+  if (command === 'fix') {
+    fix(rest);
     return;
   }
+
+  if (command === 'scan') {
+    scan(rest);
+    return;
+  }
+
   if (command === 'print-agents-snippet') {
     printAgentsSnippet();
     return;
@@ -525,6 +770,6 @@ function main() {
 try {
   main();
 } catch (error) {
-  console.error(`[multiagent-safety] ${error.message}`);
+  console.error(`[${TOOL_NAME}] ${error.message}`);
   process.exitCode = 1;
 }

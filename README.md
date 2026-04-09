@@ -1,81 +1,63 @@
-# multiagent-safety
+# musafety
 
-A command-line tool that installs a hardened multi-agent collaboration safety workflow into any git repository.
+Simple, hardened multi-agent safety setup for any git repo.
 
 > [!WARNING]
 > Not affiliated with OpenAI or Codex. Not an official tool.
 
-## How it Works
-
-`multiagent-safety` installs the same core protections used in real multi-agent repos:
-
-1. **Protected branch guard** blocks direct commits on `dev`, `main`, and `master`.
-2. **Agent branch lifecycle scripts** enforce branch/worktree isolation and safe merge-back.
-3. **File ownership locks** stop overlapping edits across agents.
-4. **Delete approvals** require explicit per-file opt-in before deleting claimed files.
-5. **Safety scan** audits the repo for stale locks, missing guardrail files, and risky state.
-
-This keeps agents from accidentally deleting each other's logic or removing Codex guardrails.
-
-## Requirements
-
-- Node.js 18+
-- Git
-- Python 3 (for `agent-file-locks.py`)
-
-## Install (npm)
+## Install
 
 ```sh
-npm i -g multiagent-safety
+npm i -g musafety
 ```
 
-## Usage
+## Fast setup (recommended)
 
 ```sh
-# install workflow into current repository
-multiagent-safety install
-
-# scan current repository for safety issues
-multiagent-safety scan
-
-# install or scan another repository
-multiagent-safety install --target /path/to/repo
-multiagent-safety scan --target /path/to/repo
-
-# print only AGENTS snippet
-multiagent-safety print-agents-snippet
+# inside your repo
+musafety setup
 ```
 
-Running `multiagent-safety` with no command defaults to `install`.
+That one command runs:
 
-## Install options
+1. install guardrail scripts/hooks,
+2. repair common safety problems,
+3. scan and report final status.
+
+## Copy prompt for your AI
 
 ```sh
-multiagent-safety install [--target <path>] [--force] [--skip-agents] [--skip-package-json] [--dry-run]
+musafety copy-prompt
 ```
 
-- `--target <path>`: target repo path (default: current directory)
-- `--force`: overwrite existing managed files when content differs
-- `--skip-agents`: do not create/update `AGENTS.md`
-- `--skip-package-json`: do not inject helper npm scripts
-- `--dry-run`: preview actions without writing files
+You can paste the output directly into Codex/Claude/Gemini to enforce a consistent setup flow.
 
-## Scan options
+## Basic commands
 
 ```sh
-multiagent-safety scan [--target <path>] [--json]
+musafety setup [--target <path>] [--dry-run]
+musafety copy-prompt
 ```
 
-- `--target <path>`: repo path to audit
-- `--json`: machine-readable findings output
+No command defaults to `musafety setup`.
 
-Scan exit codes:
+## Advanced commands
 
-- `0` = clean
-- `1` = warnings (non-fatal issues)
-- `2` = errors (high-risk / broken safety setup)
+```sh
+musafety install [--target <path>] [--force] [--skip-agents] [--skip-package-json] [--dry-run]
+musafety fix [--target <path>] [--dry-run] [--keep-stale-locks]
+musafety scan [--target <path>] [--json]
+```
 
-## What gets added to the target repo
+## What is protected
+
+- direct commits to protected branches (`dev`, `main`, `master`)
+- overlapping file ownership between agents
+- unapproved deletions of claimed files
+- risky stale/missing lock state
+- accidental loss of critical guardrail files
+
+## Files it installs
 
 ```text
 scripts/agent-branch-start.sh
@@ -86,45 +68,7 @@ scripts/install-agent-git-hooks.sh
 .omx/state/agent-file-locks.json
 ```
 
-If `package.json` exists, these scripts are added/updated:
-
-- `agent:branch:start`
-- `agent:branch:finish`
-- `agent:hooks:install`
-- `agent:locks:claim`
-- `agent:locks:allow-delete`
-- `agent:locks:release`
-- `agent:locks:status`
-
-Installer also configures:
-
-```sh
-git config core.hooksPath .githooks
-```
-
-## Recommended workflow inside an installed repo
-
-```sh
-# 1) Start isolated agent branch/worktree
-bash scripts/agent-branch-start.sh "task-name" "agent-name"
-
-# 2) Claim ownership before edits
-python3 scripts/agent-file-locks.py claim \
-  --branch "$(git rev-parse --abbrev-ref HEAD)" \
-  path/to/file1 path/to/file2
-
-# 3) If you intentionally need to delete a claimed file
-python3 scripts/agent-file-locks.py allow-delete \
-  --branch "$(git rev-parse --abbrev-ref HEAD)" \
-  path/to/file1
-
-# 4) Validate / inspect lock state
-python3 scripts/agent-file-locks.py status
-multiagent-safety scan
-
-# 5) Finish and merge back safely
-bash scripts/agent-branch-finish.sh --branch "$(git rev-parse --abbrev-ref HEAD)"
-```
+If `package.json` exists, it also adds helper scripts (`agent:*`).
 
 ## Local development
 

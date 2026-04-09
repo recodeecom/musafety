@@ -1,10 +1,11 @@
 {
-  "name": "multiagent-safety",
-  "version": "0.2.0",
-  "description": "Global CLI that installs multi-agent branch + file-lock safety workflow into git repos.",
+  "name": "musafety",
+  "version": "0.3.0",
+  "description": "Simple setup command for hardened multi-agent collaboration safety in git repos.",
   "license": "MIT",
   "preferGlobal": true,
   "bin": {
+    "musafety": "bin/multiagent-safety.js",
     "multiagent-safety": "bin/multiagent-safety.js"
   },
   "scripts": {

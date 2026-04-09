@@ -22,7 +22,7 @@ function runCmd(cmd, args, cwd) {
 }
 
 function initRepo() {
-  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'multiagent-safety-'));
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'musafety-'));
   const repoDir = path.join(tempDir, 'repo');
   fs.mkdirSync(repoDir);
 
@@ -42,10 +42,10 @@ function initRepo() {
   return repoDir;
 }
 
-test('install provisions workflow files and repo config', () => {
+test('setup provisions workflow files and repo config', () => {
   const repoDir = initRepo();
 
-  let result = runNode(['install', '--target', repoDir], repoDir);
+  let result = runNode(['setup', '--target', repoDir], repoDir);
   assert.equal(result.status, 0, result.stderr || result.stdout);
 
   const requiredFiles = [
@@ -64,10 +64,7 @@ test('install provisions workflow files and repo config', () => {
 
   const packageJson = JSON.parse(fs.readFileSync(path.join(repoDir, 'package.json'), 'utf8'));
   assert.equal(packageJson.scripts['agent:branch:start'], 'bash ./scripts/agent-branch-start.sh');
-  assert.equal(
-    packageJson.scripts['agent:locks:allow-delete'],
-    'python3 ./scripts/agent-file-locks.py allow-delete',
-  );
+  assert.equal(packageJson.scripts['agent:safety:setup'], 'musafety setup');
 
   const agentsContent = fs.readFileSync(path.join(repoDir, 'AGENTS.md'), 'utf8');
   assert.equal(agentsContent.includes('<!-- multiagent-safety:START -->'), true);
@@ -76,17 +73,22 @@ test('install provisions workflow files and repo config', () => {
   assert.equal(result.status, 0, result.stderr);
   assert.equal(result.stdout.trim(), '.githooks');
 
-  const secondRun = runNode(['install', '--target', repoDir], repoDir);
+  const secondRun = runNode(['setup', '--target', repoDir], repoDir);
   assert.equal(secondRun.status, 0, secondRun.stderr || secondRun.stdout);
+});
 
-  const scanRun = runNode(['scan', '--target', repoDir], repoDir);
-  assert.equal(scanRun.status, 0, scanRun.stdout + scanRun.stderr);
+test('default invocation runs setup', () => {
+  const repoDir = initRepo();
+
+  const result = runNode([], repoDir);
+  assert.equal(result.status, 0, result.stderr || result.stdout);
+  assert.equal(fs.existsSync(path.join(repoDir, '.githooks', 'pre-commit')), true);
 });
 
 test('validate blocks unapproved deletions until allow-delete is set', () => {
   const repoDir = initRepo();
 
-  let result = runNode(['install', '--target', repoDir], repoDir);
+  let result = runNode(['setup', '--target', repoDir], repoDir);
   assert.equal(result.status, 0, result.stderr || result.stdout);
 
   const featureFile = path.join(repoDir, 'src', 'logic.txt');
@@ -132,11 +134,16 @@ test('validate blocks unapproved deletions until allow-delete is set', () => {
   assert.equal(result.status, 0, result.stderr || result.stdout);
 });
 
-test('scan reports stale lock warnings in json mode', () => {
+test('fix repairs stale lock issues so scan becomes clean', () => {
   const repoDir = initRepo();
 
-  let result = runNode(['install', '--target', repoDir], repoDir);
+  let result = runNode(['setup', '--target', repoDir], repoDir);
   assert.equal(result.status, 0, result.stderr || result.stdout);
+
+  // Simulate broken state
+  fs.rmSync(path.join(repoDir, 'scripts', 'agent-branch-start.sh'));
+  result = runCmd('git', ['config', 'core.hooksPath', '.git/hooks'], repoDir);
+  assert.equal(result.status, 0, result.stderr);
 
   const lockPath = path.join(repoDir, '.omx', 'state', 'agent-file-locks.json');
   fs.writeFileSync(
@@ -156,12 +163,20 @@ test('scan reports stale lock warnings in json mode', () => {
     ) + '\n',
   );
 
-  result = runNode(['scan', '--target', repoDir, '--json'], repoDir);
-  assert.equal(result.status, 1, 'stale lock should produce warning exit code 1');
+  result = runNode(['scan', '--target', repoDir], repoDir);
+  assert.equal(result.status, 2, 'missing file should yield error');
 
-  const payload = JSON.parse(result.stdout);
-  assert.equal(payload.errors, 0);
-  assert.ok(payload.warnings >= 1);
-  assert.ok(payload.findings.some((item) => item.code === 'stale-branch-lock'));
-  assert.ok(payload.findings.some((item) => item.code === 'lock-target-missing'));
+  result = runNode(['fix', '--target', repoDir], repoDir);
+  assert.equal(result.status, 0, result.stderr || result.stdout);
+
+  result = runNode(['scan', '--target', repoDir], repoDir);
+  assert.equal(result.status, 0, result.stdout + result.stderr);
+});
+
+test('copy-prompt outputs AI setup instructions', () => {
+  const repoDir = initRepo();
+  const result = runNode(['copy-prompt'], repoDir);
+  assert.equal(result.status, 0, result.stderr || result.stdout);
+  assert.match(result.stdout, /musafety setup/);
+  assert.match(result.stdout, /scripts\/agent-file-locks.py claim/);
 });
