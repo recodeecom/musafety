@@ -269,10 +269,17 @@ Configuration is stored in local git config key:
 multiagent.protectedBranches
 ```
 
+Codex/OMX agent branch guard is enabled by default in pre-commit and can be configured with:
+
+```text
+multiagent.codexRequireAgentBranch
+```
+
 ## What is protected
 
 - direct commits to protected branches (defaults: `dev`, `main`, `master`; configurable via `musafety protect ...`)
 - protected-branch commits are blocked regardless of commit client (including VS Code Source Control)
+- Codex/OMX session commits are blocked on non-`agent/*` branches by default (keeps human branch untouched while agents use isolated branches)
 - overlapping file ownership between agents
 - unapproved deletions of claimed files
 - risky stale/missing lock state

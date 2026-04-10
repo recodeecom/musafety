@@ -36,6 +36,11 @@ const TEMPLATE_FILES = [
   'claude/commands/musafety.md',
 ];
 
+const AUTO_SYNC_TEMPLATE_FILES = new Set([
+  'scripts/agent-branch-start.sh',
+  'githooks/pre-commit',
+]);
+
 const EXECUTABLE_RELATIVE_PATHS = new Set([
   'scripts/agent-branch-start.sh',
   'scripts/agent-branch-finish.sh',
@@ -352,7 +357,7 @@ function copyTemplateFile(repoRoot, relativeTemplatePath, force, dryRun) {
       ensureExecutable(destinationPath, destinationRelativePath, dryRun);
       return { status: 'unchanged', file: destinationRelativePath };
     }
-    if (!force) {
+    if (!force && !AUTO_SYNC_TEMPLATE_FILES.has(relativeTemplatePath)) {
       throw new Error(
         `Refusing to overwrite existing file without --force: ${destinationRelativePath}`,
       );
@@ -381,8 +386,16 @@ function ensureTemplateFilePresent(repoRoot, relativeTemplatePath, dryRun) {
       return { status: 'unchanged', file: destinationRelativePath };
     }
 
-    // In fix mode, avoid silently replacing local customizations.
-    return { status: 'skipped-conflict', file: destinationRelativePath };
+    if (!AUTO_SYNC_TEMPLATE_FILES.has(relativeTemplatePath)) {
+      // In fix mode, avoid silently replacing local customizations.
+      return { status: 'skipped-conflict', file: destinationRelativePath };
+    }
+
+    if (!dryRun) {
+      fs.writeFileSync(destinationPath, sourceContent, 'utf8');
+      ensureExecutable(destinationPath, destinationRelativePath, dryRun);
+    }
+    return { status: dryRun ? 'would-update' : 'updated', file: destinationRelativePath };
   }
 
   ensureParentDir(destinationPath, dryRun);

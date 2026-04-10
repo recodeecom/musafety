@@ -84,7 +84,10 @@ function initRepoOnBranch(branchName) {
 function seedCommit(repoDir) {
   let result = runCmd('git', ['add', '.'], repoDir);
   assert.equal(result.status, 0, result.stderr);
-  result = runCmd('git', ['commit', '-m', 'seed'], repoDir);
+  result = runCmd('git', ['commit', '-m', 'seed'], repoDir, {
+    ALLOW_COMMIT_ON_PROTECTED_BRANCH: '1',
+    MUSAFETY_ALLOW_CODEX_ON_NON_AGENT: '1',
+  });
   assert.equal(result.status, 0, result.stderr);
 }
 
@@ -126,7 +129,7 @@ function commitFile(repoDir, relativePath, contents, message) {
   assert.equal(result.status, 0, result.stderr);
   const commitEnv = ['dev', 'main', 'master'].includes(branchName)
     ? { ALLOW_COMMIT_ON_PROTECTED_BRANCH: '1' }
-    : {};
+    : { MUSAFETY_ALLOW_CODEX_ON_NON_AGENT: '1' };
   result = runCmd('git', ['commit', '-m', message], repoDir, commitEnv);
   assert.equal(result.status, 0, result.stderr);
 }
@@ -310,6 +313,36 @@ test('setup --no-gitignore skips creating managed gitignore block', () => {
   assert.equal(fs.existsSync(path.join(repoDir, '.gitignore')), false);
 });
 
+test('setup auto-refreshes managed pre-commit guard when template changed', () => {
+  const repoDir = initRepo();
+
+  let result = runNode(['setup', '--target', repoDir, '--no-global-install'], repoDir);
+  assert.equal(result.status, 0, result.stderr || result.stdout);
+
+  fs.writeFileSync(path.join(repoDir, '.githooks', 'pre-commit'), '#!/usr/bin/env bash\nexit 0\n', 'utf8');
+
+  result = runNode(['setup', '--target', repoDir, '--no-global-install'], repoDir);
+  assert.equal(result.status, 0, result.stderr || result.stdout);
+
+  const repaired = fs.readFileSync(path.join(repoDir, '.githooks', 'pre-commit'), 'utf8');
+  assert.match(repaired, /\[codex-branch-guard\] Codex agent commit blocked on non-agent branch/);
+});
+
+test('doctor auto-refreshes managed pre-commit guard when template changed', () => {
+  const repoDir = initRepo();
+
+  let result = runNode(['setup', '--target', repoDir, '--no-global-install'], repoDir);
+  assert.equal(result.status, 0, result.stderr || result.stdout);
+
+  fs.writeFileSync(path.join(repoDir, '.githooks', 'pre-commit'), '#!/usr/bin/env bash\nexit 0\n', 'utf8');
+
+  result = runNode(['doctor', '--target', repoDir], repoDir);
+  assert.equal(result.status, 0, result.stderr || result.stdout);
+
+  const repaired = fs.readFileSync(path.join(repoDir, '.githooks', 'pre-commit'), 'utf8');
+  assert.match(repaired, /\[codex-branch-guard\] Codex agent commit blocked on non-agent branch/);
+});
+
 test('agent-branch-start keeps main worktree branch unchanged by default', () => {
   const repoDir = initRepo();
   seedCommit(repoDir);
@@ -441,6 +474,50 @@ test('pre-commit blocks protected branch commits even from VS Code Source Contro
   );
   assert.equal(hookResult.status, 1, hookResult.stderr || hookResult.stdout);
   assert.match(hookResult.stderr, /Direct commits on protected branches are blocked/);
+});
+
+test('pre-commit blocks Codex session commits on non-agent branches by default', () => {
+  const repoDir = initRepoOnBranch('feature/codex-guard');
+  seedCommit(repoDir);
+
+  const setupResult = runNode(['setup', '--target', repoDir, '--no-global-install'], repoDir);
+  assert.equal(setupResult.status, 0, setupResult.stderr || setupResult.stdout);
+
+  const hookResult = runCmd(
+    'bash',
+    ['.githooks/pre-commit'],
+    repoDir,
+    {
+      ALLOW_COMMIT_ON_PROTECTED_BRANCH: '0',
+      CODEX_THREAD_ID: 'codex-thread-test',
+    },
+  );
+
+  assert.equal(hookResult.status, 1, hookResult.stderr || hookResult.stdout);
+  assert.match(hookResult.stderr, /Codex agent commit blocked on non-agent branch/);
+});
+
+test('pre-commit allows non-agent branch commits for Codex when repo guard is disabled', () => {
+  const repoDir = initRepoOnBranch('feature/codex-guard-optout');
+  seedCommit(repoDir);
+
+  const setupResult = runNode(['setup', '--target', repoDir, '--no-global-install'], repoDir);
+  assert.equal(setupResult.status, 0, setupResult.stderr || setupResult.stdout);
+
+  let result = runCmd('git', ['config', 'multiagent.codexRequireAgentBranch', 'false'], repoDir);
+  assert.equal(result.status, 0, result.stderr);
+
+  const hookResult = runCmd(
+    'bash',
+    ['.githooks/pre-commit'],
+    repoDir,
+    {
+      ALLOW_COMMIT_ON_PROTECTED_BRANCH: '0',
+      CODEX_THREAD_ID: 'codex-thread-test',
+    },
+  );
+
+  assert.equal(hookResult.status, 0, hookResult.stderr || hookResult.stdout);
 });
 
 test('sync command rebases current agent branch onto latest origin/dev', () => {
@@ -671,7 +748,10 @@ test('validate blocks unapproved deletions until allow-delete is set', () => {
 
   result = runCmd('git', ['add', '.'], repoDir);
   assert.equal(result.status, 0, result.stderr);
-  result = runCmd('git', ['commit', '-m', 'seed'], repoDir);
+  result = runCmd('git', ['commit', '-m', 'seed'], repoDir, {
+    ALLOW_COMMIT_ON_PROTECTED_BRANCH: '1',
+    MUSAFETY_ALLOW_CODEX_ON_NON_AGENT: '1',
+  });
   assert.equal(result.status, 0, result.stderr);
 
   result = runCmd(
