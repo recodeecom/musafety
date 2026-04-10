@@ -31,6 +31,8 @@ const TEMPLATE_FILES = [
   'scripts/install-agent-git-hooks.sh',
   'scripts/openspec/init-plan-workspace.sh',
   'githooks/pre-commit',
+  'codex/skills/musafety/SKILL.md',
+  'claude/commands/musafety.md',
 ];
 
 const EXECUTABLE_RELATIVE_PATHS = new Set([
@@ -63,6 +65,8 @@ const MANAGED_GITIGNORE_PATHS = [
   'scripts/install-agent-git-hooks.sh',
   'scripts/openspec/init-plan-workspace.sh',
   '.githooks/pre-commit',
+  '.codex/skills/musafety/SKILL.md',
+  '.claude/commands/musafety.md',
   LOCK_FILE_RELATIVE,
 ];
 const COMMAND_TYPO_ALIASES = new Map([
@@ -241,6 +245,7 @@ function run(cmd, args, options = {}) {
     encoding: 'utf8',
     stdio: options.stdio || 'pipe',
     cwd: options.cwd,
+    timeout: options.timeout,
   });
 }
 
@@ -275,6 +280,12 @@ function toDestinationPath(relativeTemplatePath) {
     return relativeTemplatePath;
   }
   if (relativeTemplatePath.startsWith('githooks/')) {
+    return `.${relativeTemplatePath}`;
+  }
+  if (relativeTemplatePath.startsWith('codex/')) {
+    return `.${relativeTemplatePath}`;
+  }
+  if (relativeTemplatePath.startsWith('claude/')) {
     return `.${relativeTemplatePath}`;
   }
   throw new Error(`Unsupported template path: ${relativeTemplatePath}`);
@@ -901,6 +912,135 @@ function promptYesNo(question, defaultYes = true) {
     }
     process.stdout.write('Please answer with y or n.\n');
   }
+}
+
+function envFlagEnabled(name) {
+  const raw = process.env[name];
+  if (raw == null) return false;
+  return ['1', 'true', 'yes', 'on'].includes(String(raw).trim().toLowerCase());
+}
+
+function parseAutoApproval(name) {
+  const raw = process.env[name];
+  if (raw == null) return null;
+  const normalized = String(raw).trim().toLowerCase();
+  if (['1', 'true', 'yes', 'y', 'on'].includes(normalized)) return true;
+  if (['0', 'false', 'no', 'n', 'off'].includes(normalized)) return false;
+  return null;
+}
+
+function parseVersionString(version) {
+  const match = String(version || '').trim().match(/^v?(\d+)\.(\d+)\.(\d+)/);
+  if (!match) return null;
+  return [
+    Number.parseInt(match[1], 10),
+    Number.parseInt(match[2], 10),
+    Number.parseInt(match[3], 10),
+  ];
+}
+
+function isNewerVersion(latest, current) {
+  const latestParts = parseVersionString(latest);
+  const currentParts = parseVersionString(current);
+
+  if (!latestParts || !currentParts) {
+    return String(latest || '').trim() !== String(current || '').trim();
+  }
+
+  for (let index = 0; index < latestParts.length; index += 1) {
+    if (latestParts[index] > currentParts[index]) return true;
+    if (latestParts[index] < currentParts[index]) return false;
+  }
+  return false;
+}
+
+function parseNpmVersionOutput(stdout) {
+  const trimmed = String(stdout || '').trim();
+  if (!trimmed) return '';
+
+  try {
+    const parsed = JSON.parse(trimmed);
+    if (Array.isArray(parsed)) {
+      return String(parsed[parsed.length - 1] || '').trim();
+    }
+    return String(parsed || '').trim();
+  } catch {
+    const firstLine = trimmed.split('\n').map((line) => line.trim()).find(Boolean);
+    return firstLine || '';
+  }
+}
+
+function checkForMusafetyUpdate() {
+  if (envFlagEnabled('MUSAFETY_SKIP_UPDATE_CHECK')) {
+    return { checked: false, reason: 'disabled' };
+  }
+
+  const forceCheck = envFlagEnabled('MUSAFETY_FORCE_UPDATE_CHECK');
+  if (!forceCheck && !isInteractiveTerminal()) {
+    return { checked: false, reason: 'non-interactive' };
+  }
+
+  const result = run(NPM_BIN, ['view', packageJson.name, 'version', '--json'], { timeout: 5000 });
+  if (result.status !== 0) {
+    return { checked: false, reason: 'lookup-failed' };
+  }
+
+  const latest = parseNpmVersionOutput(result.stdout);
+  if (!latest) {
+    return { checked: false, reason: 'invalid-latest-version' };
+  }
+
+  return {
+    checked: true,
+    current: packageJson.version,
+    latest,
+    updateAvailable: isNewerVersion(latest, packageJson.version),
+  };
+}
+
+function printUpdateAvailableBanner(current, latest) {
+  const title = colorize('UPDATE AVAILABLE', '1;33');
+  console.log(`[${TOOL_NAME}] ${title}`);
+  console.log(`[${TOOL_NAME}]   Current: ${current}`);
+  console.log(`[${TOOL_NAME}]   Latest : ${latest}`);
+  console.log(`[${TOOL_NAME}]   Command: ${NPM_BIN} i -g ${packageJson.name}@latest`);
+}
+
+function maybeSelfUpdateBeforeStatus() {
+  const check = checkForMusafetyUpdate();
+  if (!check.checked || !check.updateAvailable) {
+    return;
+  }
+
+  printUpdateAvailableBanner(check.current, check.latest);
+
+  const autoApproval = parseAutoApproval('MUSAFETY_AUTO_UPDATE_APPROVAL');
+  const interactive = isInteractiveTerminal();
+
+  if (!interactive && autoApproval == null) {
+    console.log(`[${TOOL_NAME}] Non-interactive shell; skipping auto-update prompt.`);
+    return;
+  }
+
+  const shouldUpdate = autoApproval != null
+    ? autoApproval
+    : promptYesNo(
+      `Update now? (${NPM_BIN} i -g ${packageJson.name}@latest)`,
+      true,
+    );
+
+  if (!shouldUpdate) {
+    console.log(`[${TOOL_NAME}] Skipped update.`);
+    return;
+  }
+
+  const installResult = run(NPM_BIN, ['i', '-g', `${packageJson.name}@latest`], { stdio: 'inherit' });
+  if (installResult.status !== 0) {
+    console.log(`[${TOOL_NAME}] ⚠️ Update failed. You can retry manually.`);
+    return;
+  }
+
+  console.log(`[${TOOL_NAME}] ✅ Updated to latest published version.`);
 }
 
 function promptYesNoStrict(question) {

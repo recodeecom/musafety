@@ -56,7 +56,8 @@ That one command runs:
 2. asks strict Y/N approval only if something is missing,
 3. installs guardrail scripts/hooks,
 4. repairs common safety problems,
-5. scans and reports final status.
+5. installs local Codex + Claude musafety helper skill files if missing,
+6. scans and reports final status.
 
 ## Setup screenshot
 
@@ -65,6 +66,13 @@ That one command runs:
 ## Status logs screenshot
 
 ![musafety status command logs screenshot](https://raw.githubusercontent.com/recodeecom/multiagent-safety/main/docs/images/status-tools-logs.svg)
+
+## AI helper skills installed by setup/doctor
+
+`musafety setup` and `musafety doctor` also ensure these local helper files exist:
+
+- Codex skill: `.codex/skills/musafety/SKILL.md`
+- Claude command: `.claude/commands/musafety.md` (use as `/musafety`)
 
 ## Workflow protocol screenshots
 
@@ -230,6 +238,8 @@ scripts/agent-file-locks.py
 scripts/install-agent-git-hooks.sh
 scripts/openspec/init-plan-workspace.sh
 .githooks/pre-commit
+.codex/skills/musafety/SKILL.md
+.claude/commands/musafety.md
 .omx/state/agent-file-locks.json
 ```
 

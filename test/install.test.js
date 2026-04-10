@@ -144,6 +144,8 @@ test('setup provisions workflow files and repo config', () => {
     'scripts/install-agent-git-hooks.sh',
     'scripts/openspec/init-plan-workspace.sh',
     '.githooks/pre-commit',
+    '.codex/skills/musafety/SKILL.md',
+    '.claude/commands/musafety.md',
     '.omx/state/agent-file-locks.json',
     '.gitignore',
     'AGENTS.md',
@@ -170,6 +172,8 @@ test('setup provisions workflow files and repo config', () => {
   assert.match(gitignoreContent, /scripts\/agent-branch-start\.sh/);
   assert.match(gitignoreContent, /scripts\/agent-file-locks\.py/);
   assert.match(gitignoreContent, /\.githooks\/pre-commit/);
+  assert.match(gitignoreContent, /\.codex\/skills\/musafety\/SKILL\.md/);
+  assert.match(gitignoreContent, /\.claude\/commands\/musafety\.md/);
   assert.match(gitignoreContent, /\.omx\/state\/agent-file-locks\.json/);
   assert.match(gitignoreContent, /# multiagent-safety:END/);
 
