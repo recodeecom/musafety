@@ -257,9 +257,9 @@ Use this exact checklist to setup multi-agent safety in this repository for Code
 
 ```sh
 gx status [--target <path>] [--json]
-gx setup [--target <path>] [--dry-run] [--yes-global-install|--no-global-install] [--no-gitignore]
-gx init [--target <path>] [--dry-run] [--yes-global-install|--no-global-install] [--no-gitignore]
-gx doctor [--target <path>] [--dry-run] [--json] [--keep-stale-locks] [--no-gitignore]
+gx setup [--target <path>] [--dry-run] [--yes-global-install|--no-global-install] [--no-gitignore] [--allow-protected-base-write]
+gx init [--target <path>] [--dry-run] [--yes-global-install|--no-global-install] [--no-gitignore] [--allow-protected-base-write]
+gx doctor [--target <path>] [--dry-run] [--json] [--keep-stale-locks] [--no-gitignore] [--allow-protected-base-write]
 gx copy-prompt
 gx copy-commands
 gx protect list [--target <path>]
@@ -283,12 +283,13 @@ and asks `[y/N]` whether to update immediately (default is `N`).
 - Interactive setup: prompts for Y/N approval before global OMX/OpenSpec/codex-auth install.
 - Interactive prompt is strict (`[y/n]`) and waits for explicit answer.
 - Non-interactive setup: skips global installs by default; use `--yes-global-install` to force.
+- In already-initialized repos, `setup` / `install` / `fix` / `doctor` block writes on protected `main` by default; start an agent branch first. Use `--allow-protected-base-write` only for emergency in-place maintenance.
 
 ## Advanced commands
 
 ```sh
-gx install [--target <path>] [--force] [--skip-agents] [--skip-package-json] [--no-gitignore] [--dry-run]
-gx fix [--target <path>] [--dry-run] [--keep-stale-locks] [--no-gitignore]
+gx install [--target <path>] [--force] [--skip-agents] [--skip-package-json] [--no-gitignore] [--dry-run] [--allow-protected-base-write]
+gx fix [--target <path>] [--dry-run] [--keep-stale-locks] [--no-gitignore] [--allow-protected-base-write]
 gx scan [--target <path>] [--json]
 gx report help
 ```

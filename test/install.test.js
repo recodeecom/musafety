@@ -253,6 +253,42 @@ test('init aliases setup and provisions workflow files', () => {
   assert.equal(fs.existsSync(path.join(repoDir, 'AGENTS.md')), true);
 });
 
+test('setup blocks in-place maintenance writes on protected main after initialization', () => {
+  const repoDir = initRepoOnBranch('main');
+
+  let result = runNode(['setup', '--target', repoDir, '--no-global-install'], repoDir);
+  assert.equal(result.status, 0, result.stderr || result.stdout);
+
+  result = runNode(['setup', '--target', repoDir, '--no-global-install'], repoDir);
+  assert.equal(result.status, 1, result.stderr || result.stdout);
+  assert.match(result.stderr, /setup blocked on protected branch 'main'/);
+  assert.match(result.stderr, /agent-branch-start\.sh/);
+});
+
+test('setup allows explicit protected-main override for in-place maintenance', () => {
+  const repoDir = initRepoOnBranch('main');
+
+  let result = runNode(['setup', '--target', repoDir, '--no-global-install'], repoDir);
+  assert.equal(result.status, 0, result.stderr || result.stdout);
+
+  result = runNode(
+    ['setup', '--target', repoDir, '--no-global-install', '--allow-protected-base-write'],
+    repoDir,
+  );
+  assert.equal(result.status, 0, result.stderr || result.stdout);
+});
+
+test('install blocks in-place maintenance writes on protected main unless override is set', () => {
+  const repoDir = initRepoOnBranch('main');
+
+  let result = runNode(['setup', '--target', repoDir, '--no-global-install'], repoDir);
+  assert.equal(result.status, 0, result.stderr || result.stdout);
+
+  result = runNode(['install', '--target', repoDir], repoDir);
+  assert.equal(result.status, 1, result.stderr || result.stdout);
+  assert.match(result.stderr, /install blocked on protected branch 'main'/);
+});
+
 test('setup pre-commit blocks codex session commits on non-agent branches by default', () => {
   const repoDir = initRepo();
 
