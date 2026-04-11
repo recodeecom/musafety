@@ -288,6 +288,7 @@ NOTES
   - Short alias: ${SHORT_TOOL_NAME}
   - ${SHORT_TOOL_NAME} init is an alias of ${SHORT_TOOL_NAME} setup
   - ${TOOL_NAME} setup asks for Y/N approval before global installs
+  - In initialized repos, setup/install/fix/doctor block in-place writes on protected main by default
   - Legacy command aliases are still supported: ${LEGACY_NAMES.join(', ')}`);
 
   if (outsideGitRepo) {
@@ -645,6 +646,10 @@ function parseCommonArgs(rawArgs, defaults) {
       options.skipGitignore = true;
       continue;
     }
+    if (arg === '--allow-protected-base-write') {
+      options.allowProtectedBaseWrite = true;
+      continue;
+    }
 
     throw new Error(`Unknown option: ${arg}`);
   }
@@ -654,6 +659,44 @@ function parseCommonArgs(rawArgs, defaults) {
   }
 
   return options;
+}
+
+function hasGuardexBootstrapFiles(repoRoot) {
+  const required = [
+    'AGENTS.md',
+    'scripts/agent-branch-start.sh',
+    '.githooks/pre-commit',
+    LOCK_FILE_RELATIVE,
+  ];
+  return required.every((relativePath) => fs.existsSync(path.join(repoRoot, relativePath)));
+}
+
+function assertProtectedMainWriteAllowed(options, commandName) {
+  if (options.dryRun || options.allowProtectedBaseWrite) {
+    return;
+  }
+
+  const repoRoot = resolveRepoRoot(options.target);
+  if (!hasGuardexBootstrapFiles(repoRoot)) {
+    return;
+  }
+
+  const branch = currentBranchName(repoRoot);
+  if (branch !== 'main') {
+    return;
+  }
+
+  const protectedBranches = readProtectedBranches(repoRoot);
+  if (!protectedBranches.includes(branch)) {
+    return;
+  }
+
+  throw new Error(
+    `${commandName} blocked on protected branch '${branch}' in an initialized repo.\n` +
+    `Keep local '${branch}' pull-only: start an agent branch/worktree first:\n` +
+    `  bash scripts/agent-branch-start.sh "<task>" "codex"\n` +
+    `Override once only when intentional: --allow-protected-base-write`,
+  );
 }
 
 function parseTargetFlag(rawArgs, defaultTarget = process.cwd()) {
@@ -1792,8 +1835,10 @@ function install(rawArgs) {
     skipPackageJson: false,
     skipGitignore: false,
     dryRun: false,
+    allowProtectedBaseWrite: false,
   });
 
+  assertProtectedMainWriteAllowed(options, 'install');
   const payload = runInstallInternal(options);
   printOperations('Install target', payload, options.dryRun);
 
@@ -1812,8 +1857,10 @@ function fix(rawArgs) {
     skipPackageJson: false,
     skipGitignore: false,
     dryRun: false,
+    allowProtectedBaseWrite: false,
   });
 
+  assertProtectedMainWriteAllowed(options, 'fix');
   const payload = runFixInternal(options);
   printOperations('Fix target', payload, options.dryRun);
 
@@ -1844,8 +1891,10 @@ function doctor(rawArgs) {
     skipGitignore: false,
     dryRun: false,
     json: false,
+    allowProtectedBaseWrite: false,
   });
 
+  assertProtectedMainWriteAllowed(options, 'doctor');
   const fixPayload = runFixInternal(options);
   const scanResult = runScanInternal({ target: options.target, json: false });
   const musafe = scanResult.errors === 0 && scanResult.warnings === 0;
@@ -1989,6 +2038,7 @@ function setup(rawArgs) {
     dryRun: false,
     yesGlobalInstall: false,
     noGlobalInstall: false,
+    allowProtectedBaseWrite: false,
   });
 
   const globalInstallStatus = installGlobalToolchain(options);
@@ -2011,6 +2061,7 @@ function setup(rawArgs) {
     );
   }
 
+  assertProtectedMainWriteAllowed(options, 'setup');
   const installPayload = runInstallInternal(options);
   printOperations('Setup/install', installPayload, options.dryRun);
 
