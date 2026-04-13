@@ -97,6 +97,9 @@ gx status
 # setup and repair
 gx setup
 gx doctor
+# for other repos
+gx setup --target /path/to/repo
+gx doctor --target /path/to/repo
 
 # protected branch management
 gx protect list
@@ -108,7 +111,7 @@ gx sync --check
 gx sync
 
 # continuously monitor open PRs targeting current branch and dispatch codex-agent review/merge tasks
-bash scripts/review-bot-watch.sh --interval 30
+gx review --interval 30
 
 # cleanup merged agent branches and hide clean stale agent worktrees
 gx cleanup
@@ -123,7 +126,7 @@ gx report scorecard --repo github.com/recodeecom/multiagent-safety
 Run this in your local shell to keep watching PRs targeting the current branch (or `--base <branch>`):
 
 ```sh
-bash scripts/review-bot-watch.sh --interval 30
+gx review --interval 30
 ```
 
 Useful flags:
