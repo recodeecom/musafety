@@ -2410,6 +2410,7 @@ function parseCleanupArgs(rawArgs) {
     watch: false,
     intervalSeconds: 60,
     once: false,
+    maxBranches: 0,
   };
 
   for (let index = 0; index < rawArgs.length; index += 1) {
@@ -2493,6 +2494,19 @@ function parseCleanupArgs(rawArgs) {
     }
     if (arg === '--once') {
       options.once = true;
+      continue;
+    }
+    if (arg === '--max-branches') {
+      const next = rawArgs[index + 1];
+      if (!next) {
+        throw new Error('--max-branches requires an integer value');
+      }
+      const parsed = Number.parseInt(next, 10);
+      if (!Number.isInteger(parsed) || parsed < 1) {
+        throw new Error('--max-branches must be an integer >= 1');
+      }
+      options.maxBranches = parsed;
+      index += 1;
       continue;
     }
     throw new Error(`Unknown option: ${arg}`);
@@ -4565,6 +4579,9 @@ function cleanup(rawArgs) {
   if (options.idleMinutes > 0) {
     args.push('--idle-minutes', String(options.idleMinutes));
   }
+  if (options.maxBranches > 0) {
+    args.push('--max-branches', String(options.maxBranches));
+  }
   args.push('--delete-branches');
   if (!options.keepRemote) {
     args.push('--delete-remote-branches');
@@ -4582,7 +4599,7 @@ function cleanup(rawArgs) {
     while (true) {
       cycle += 1;
       console.log(
-        `[${TOOL_NAME}] Cleanup watch cycle=${cycle} (interval=${options.intervalSeconds}s, idleMinutes=${options.idleMinutes}).`,
+        `[${TOOL_NAME}] Cleanup watch cycle=${cycle} (interval=${options.intervalSeconds}s, idleMinutes=${options.idleMinutes}, maxBranches=${options.maxBranches > 0 ? options.maxBranches : "unbounded"}).`,
       );
       runCleanupCycle();
       if (options.once) {
