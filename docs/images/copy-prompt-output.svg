@@ -7,10 +7,10 @@
     <text x="78" y="132">Use this exact checklist to setup multi-agent safety in this repository for Codex or Claude.</text>
 
     <text x="78" y="196">1) Install (if missing):</text>
-    <text x="118" y="238">npm i -g musafety</text>
+    <text x="118" y="238">npm i -g guardex</text>
 
     <text x="78" y="302">2) Bootstrap safety in this repo:</text>
-    <text x="118" y="344">musafety setup</text>
+    <text x="118" y="344">guardex setup</text>
 
     <text x="118" y="408">- Setup detects global OMX/OpenSpec first.</text>
     <text x="118" y="450">- If one is missing and setup asks for approval, reply explicitly:</text>
@@ -18,7 +18,7 @@
     <text x="158" y="534">- n = skip global installs</text>
 
     <text x="78" y="598">3) If setup reports warnings/errors, repair + re-check:</text>
-    <text x="118" y="640">musafety doctor</text>
+    <text x="118" y="640">guardex doctor</text>
 
     <text x="78" y="704">4) Confirm next safe agent workflow commands:</text>
     <text x="118" y="746">bash scripts/agent-branch-start.sh "task" "agent-name"</text>
@@ -29,10 +29,10 @@
     <text x="118" y="936">bash scripts/openspec/init-plan-workspace.sh "&lt;plan-slug&gt;"</text>
 
     <text x="78" y="1000">6) Optional: protect extra branches:</text>
-    <text x="118" y="1042">musafety protect add release staging</text>
+    <text x="118" y="1042">guardex protect add release staging</text>
 
     <text x="78" y="1106">7) Optional: sync your current agent branch with latest dev:</text>
-    <text x="118" y="1148">musafety sync --check</text>
-    <text x="118" y="1190">musafety sync</text>
+    <text x="118" y="1148">guardex sync --check</text>
+    <text x="118" y="1190">guardex sync</text>
   </g>
 </svg>

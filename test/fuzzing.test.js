@@ -45,7 +45,7 @@ function runCmd(cmd, args, cwd, envOverrides = {}) {
 }
 
 function initRepo() {
-  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'musafety-fuzz-'));
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'guardex-fuzz-'));
   const repoDir = path.join(tempDir, 'repo');
   fs.mkdirSync(repoDir);
 
@@ -67,9 +67,9 @@ function initRepo() {
 
 test(
   'fuzz suite stays runnable when fast-check cannot be resolved',
-  { skip: process.env.MUSAFETY_FUZZING_OPTIONAL_DEP_SELFTEST === '1' ? 'self-test child process' : false },
+  { skip: process.env.GUARDEX_FUZZING_OPTIONAL_DEP_SELFTEST === '1' ? 'self-test child process' : false },
   () => {
-    const preloadDir = fs.mkdtempSync(path.join(os.tmpdir(), 'musafety-fuzz-preload-'));
+    const preloadDir = fs.mkdtempSync(path.join(os.tmpdir(), 'guardex-fuzz-preload-'));
     const preloadPath = path.join(preloadDir, 'missing-fast-check.cjs');
     fs.writeFileSync(
       preloadPath,
@@ -91,7 +91,7 @@ Module._load = function patchedLoad(request, parent, isMain) {
       process.execPath,
       ['--require', preloadPath, '-e', `require(${JSON.stringify(__filename)})`],
       path.resolve(__dirname, '..'),
-      { MUSAFETY_FUZZING_OPTIONAL_DEP_SELFTEST: '1' },
+      { GUARDEX_FUZZING_OPTIONAL_DEP_SELFTEST: '1' },
     );
 
     assert.equal(result.status, 0, `${result.stderr}\n${result.stdout}`);

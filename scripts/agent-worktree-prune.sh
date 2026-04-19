@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-BASE_BRANCH="${MUSAFETY_BASE_BRANCH:-}"
+BASE_BRANCH="${GUARDEX_BASE_BRANCH:-}"
 BASE_BRANCH_EXPLICIT=0
 DRY_RUN=0
 FORCE_DIRTY=0
@@ -10,7 +10,7 @@ DELETE_REMOTE_BRANCHES=0
 ONLY_DIRTY_WORKTREES=0
 TARGET_BRANCH=""
 IDLE_MINUTES=0
-NOW_EPOCH_RAW="${MUSAFETY_PRUNE_NOW_EPOCH:-}"
+NOW_EPOCH_RAW="${GUARDEX_PRUNE_NOW_EPOCH:-}"
 IDLE_SECONDS=0
 NOW_EPOCH=0
 
@@ -140,7 +140,7 @@ if [[ ! "$IDLE_MINUTES" =~ ^[0-9]+$ ]]; then
 fi
 
 if [[ -n "$NOW_EPOCH_RAW" && ! "$NOW_EPOCH_RAW" =~ ^[0-9]+$ ]]; then
-  echo "[agent-worktree-prune] MUSAFETY_PRUNE_NOW_EPOCH must be a unix timestamp integer." >&2
+  echo "[agent-worktree-prune] GUARDEX_PRUNE_NOW_EPOCH must be a unix timestamp integer." >&2
   exit 1
 fi
 
@@ -227,7 +227,7 @@ bootstrap_manifest_path_for_worktree() {
   if [[ -z "$git_dir" ]]; then
     return 1
   fi
-  printf '%s/musafety-bootstrap-manifest.json' "$git_dir"
+  printf '%s/guardex-bootstrap-manifest.json' "$git_dir"
 }
 
 worktree_matches_bootstrap_manifest() {

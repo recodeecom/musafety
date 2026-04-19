@@ -349,11 +349,11 @@ openspec update
 ### OpenSpec in agent sub-branches
 
 - `scripts/codex-agent.sh` enforces OpenSpec workspaces before it launches Codex in each sandbox branch/worktree.
-- `scripts/agent-branch-start.sh` can scaffold both `openspec/changes/<agent-branch-slug>/` and `openspec/plan/<agent-branch-slug>/` when you set `MUSAFETY_OPENSPEC_AUTO_INIT=true`.
-- Set `MUSAFETY_OPENSPEC_AUTO_INIT=false` (default for `agent-branch-start`) to skip branch-start auto-bootstrap.
-- Set `MUSAFETY_OPENSPEC_PLAN_SLUG=<kebab-case-slug>` to force a specific plan workspace name.
-- Set `MUSAFETY_OPENSPEC_CHANGE_SLUG=<kebab-case-slug>` to force a specific change workspace name.
-- Set `MUSAFETY_OPENSPEC_CAPABILITY_SLUG=<kebab-case-slug>` to override the default capability folder used for `spec.md` scaffolding.
+- `scripts/agent-branch-start.sh` can scaffold both `openspec/changes/<agent-branch-slug>/` and `openspec/plan/<agent-branch-slug>/` when you set `GUARDEX_OPENSPEC_AUTO_INIT=true`.
+- Set `GUARDEX_OPENSPEC_AUTO_INIT=false` (default for `agent-branch-start`) to skip branch-start auto-bootstrap.
+- Set `GUARDEX_OPENSPEC_PLAN_SLUG=<kebab-case-slug>` to force a specific plan workspace name.
+- Set `GUARDEX_OPENSPEC_CHANGE_SLUG=<kebab-case-slug>` to force a specific change workspace name.
+- Set `GUARDEX_OPENSPEC_CAPABILITY_SLUG=<kebab-case-slug>` to override the default capability folder used for `spec.md` scaffolding.
 
 ## Security and maintenance posture
 
@@ -371,6 +371,14 @@ npm pack --dry-run
 ```
 
 ## Release notes
+
+### v6.0.0
+
+- **Breaking** — removed the legacy `musafety` bin alias and all `MUSAFETY_*` environment variables. Callers must migrate to the `guardex` / `gx` bins and the `GUARDEX_*` env-var surface.
+- **Breaking** — bootstrap manifest filename changed from `musafety-bootstrap-manifest.json` to `guardex-bootstrap-manifest.json`; existing sandbox worktrees must be pruned + re-bootstrapped (or have their manifest manually renamed).
+- Rebranded all remaining `musafety` / `Musafety` / `MUSAFETY` codename tokens to `guardex` / `Guardex` / `GUARDEX` across scripts, templates, hooks, tests, and docs.
+- The descriptive phrase `multiagent-safety` (including `bin/multiagent-safety.js` and `templates/AGENTS.multiagent-safety.md`) is preserved intentionally — only the short codename changed.
+- Bumped package version from `5.0.17` to `6.0.0` for the next npm publish.
 
 ### v5.0.17
 
@@ -417,7 +425,7 @@ npm pack --dry-run
 
 ### v5.0.9
 
-- Enforced OpenSpec workspace bootstrap for sandbox agent execution: `scripts/codex-agent.sh` now initializes `openspec/plan/<agent-branch-slug>/` before launching Codex, and `scripts/agent-branch-start.sh` supports `MUSAFETY_OPENSPEC_AUTO_INIT` plus `MUSAFETY_OPENSPEC_PLAN_SLUG`.
+- Enforced OpenSpec workspace bootstrap for sandbox agent execution: `scripts/codex-agent.sh` now initializes `openspec/plan/<agent-branch-slug>/` before launching Codex, and `scripts/agent-branch-start.sh` supports `GUARDEX_OPENSPEC_AUTO_INIT` plus `GUARDEX_OPENSPEC_PLAN_SLUG`.
 - Tightened doctor auto-finish correctness: sandbox finish now waits for merge and exits non-zero if the PR closes without merge, so repair flows are not reported as complete when policy blocks merge.
 - Updated package version from `5.0.8` to `5.0.9` for the next npm publish.
 

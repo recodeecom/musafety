@@ -14,7 +14,7 @@ permissions:
 
 jobs:
   publish:
-    if: github.repository == 'recodeecom/musafety'
+    if: github.repository == 'recodeecom/guardex'
     runs-on: ubuntu-latest
     environment: npm
 

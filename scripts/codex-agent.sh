@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-TASK_NAME="${MUSAFETY_TASK_NAME:-task}"
-AGENT_NAME="${MUSAFETY_AGENT_NAME:-agent}"
-BASE_BRANCH="${MUSAFETY_BASE_BRANCH:-}"
+TASK_NAME="${GUARDEX_TASK_NAME:-task}"
+AGENT_NAME="${GUARDEX_AGENT_NAME:-agent}"
+BASE_BRANCH="${GUARDEX_BASE_BRANCH:-}"
 BASE_BRANCH_EXPLICIT=0
-CODEX_BIN="${MUSAFETY_CODEX_BIN:-codex}"
-GH_PR_REF="${MUSAFETY_GH_PR_REF:-}"
-GH_REPO_REF="${MUSAFETY_GH_REPO:-}"
+CODEX_BIN="${GUARDEX_CODEX_BIN:-codex}"
+GH_PR_REF="${GUARDEX_GH_PR_REF:-}"
+GH_REPO_REF="${GUARDEX_GH_REPO:-}"
 GH_SYNC_FLAG=""
 
 if [[ -n "$BASE_BRANCH" ]]; then
@@ -161,7 +161,7 @@ resolve_finish_base_branch() {
   local branch="$1"
   local stored_base=""
 
-  stored_base="$(git -C "$repo_root" config --get "branch.${branch}.musafetyBase" || true)"
+  stored_base="$(git -C "$repo_root" config --get "branch.${branch}.guardexBase" || true)"
   if [[ -n "$stored_base" ]]; then
     printf '%s' "$stored_base"
     return

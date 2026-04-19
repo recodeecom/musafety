@@ -9,14 +9,14 @@ const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8'));
 
 const TOOL_NAME = 'guardex';
 const SHORT_TOOL_NAME = 'gx';
-const LEGACY_NAMES = ['musafety', 'multiagent-safety'];
+const LEGACY_NAMES = ['guardex', 'multiagent-safety'];
 const OPENSPEC_PACKAGE = '@fission-ai/openspec';
 const GLOBAL_TOOLCHAIN_PACKAGES = [
   'oh-my-codex',
   OPENSPEC_PACKAGE,
   '@imdeadpool/codex-account-switcher',
 ];
-const GH_BIN = process.env.MUSAFETY_GH_BIN || 'gh';
+const GH_BIN = process.env.GUARDEX_GH_BIN || 'gh';
 const REQUIRED_SYSTEM_TOOLS = [
   {
     name: 'gh',
@@ -26,11 +26,11 @@ const REQUIRED_SYSTEM_TOOLS = [
   },
 ];
 const MAINTAINER_RELEASE_REPO = path.resolve(
-  process.env.MUSAFETY_RELEASE_REPO || '/tmp/multiagent-safety',
+  process.env.GUARDEX_RELEASE_REPO || '/tmp/multiagent-safety',
 );
-const NPM_BIN = process.env.MUSAFETY_NPM_BIN || 'npm';
-const OPENSPEC_BIN = process.env.MUSAFETY_OPENSPEC_BIN || 'openspec';
-const SCORECARD_BIN = process.env.MUSAFETY_SCORECARD_BIN || 'scorecard';
+const NPM_BIN = process.env.GUARDEX_NPM_BIN || 'npm';
+const OPENSPEC_BIN = process.env.GUARDEX_OPENSPEC_BIN || 'openspec';
+const SCORECARD_BIN = process.env.GUARDEX_SCORECARD_BIN || 'scorecard';
 const GIT_PROTECTED_BRANCHES_KEY = 'multiagent.protectedBranches';
 const GIT_BASE_BRANCH_KEY = 'multiagent.baseBranch';
 const GIT_SYNC_STRATEGY_KEY = 'multiagent.sync.strategy';
@@ -1405,7 +1405,7 @@ function finishDoctorSandboxBranch(blocked, metadata) {
       note: 'origin remote missing; skipped auto-finish',
     };
   }
-  const explicitGhBin = Boolean(String(process.env.MUSAFETY_GH_BIN || '').trim());
+  const explicitGhBin = Boolean(String(process.env.GUARDEX_GH_BIN || '').trim());
   if (!explicitGhBin && !originRemoteLooksLikeGithub(blocked.repoRoot)) {
     return {
       status: 'skipped',
@@ -1413,7 +1413,7 @@ function finishDoctorSandboxBranch(blocked, metadata) {
     };
   }
 
-  const ghBin = process.env.MUSAFETY_GH_BIN || 'gh';
+  const ghBin = process.env.GUARDEX_GH_BIN || 'gh';
   if (!isCommandAvailable(ghBin)) {
     return {
       status: 'skipped',
@@ -1429,7 +1429,7 @@ function finishDoctorSandboxBranch(blocked, metadata) {
     };
   }
 
-  const rawWaitTimeoutSeconds = Number.parseInt(process.env.MUSAFETY_FINISH_WAIT_TIMEOUT_SECONDS || '1800', 10);
+  const rawWaitTimeoutSeconds = Number.parseInt(process.env.GUARDEX_FINISH_WAIT_TIMEOUT_SECONDS || '1800', 10);
   const waitTimeoutSeconds =
     Number.isFinite(rawWaitTimeoutSeconds) && rawWaitTimeoutSeconds >= 30 ? rawWaitTimeoutSeconds : 1800;
   const finishTimeoutMs = Math.max(180_000, (waitTimeoutSeconds + 60) * 1000);
@@ -2170,15 +2170,15 @@ function autoFinishReadyAgentBranches(repoRoot, options = {}) {
     return summary;
   }
 
-  if (String(process.env.MUSAFETY_DOCTOR_SANDBOX || '') === '1') {
+  if (String(process.env.GUARDEX_DOCTOR_SANDBOX || '') === '1') {
     summary.enabled = false;
     summary.details.push('Skipped auto-finish sweep inside doctor sandbox pass.');
     return summary;
   }
 
-  if (String(process.env.MUSAFETY_SKIP_AUTO_FINISH_READY_BRANCHES || '') === '1') {
+  if (String(process.env.GUARDEX_SKIP_AUTO_FINISH_READY_BRANCHES || '') === '1') {
     summary.enabled = false;
-    summary.details.push('Skipped auto-finish sweep (MUSAFETY_SKIP_AUTO_FINISH_READY_BRANCHES=1).');
+    summary.details.push('Skipped auto-finish sweep (GUARDEX_SKIP_AUTO_FINISH_READY_BRANCHES=1).');
     return summary;
   }
 
@@ -2201,14 +2201,14 @@ function autoFinishReadyAgentBranches(repoRoot, options = {}) {
     summary.details.push('Skipped auto-finish sweep (origin remote missing).');
     return summary;
   }
-  const explicitGhBin = Boolean(String(process.env.MUSAFETY_GH_BIN || '').trim());
+  const explicitGhBin = Boolean(String(process.env.GUARDEX_GH_BIN || '').trim());
   if (!explicitGhBin && !originRemoteLooksLikeGithub(repoRoot)) {
     summary.enabled = false;
     summary.details.push('Skipped auto-finish sweep (origin remote is not GitHub).');
     return summary;
   }
 
-  const ghBin = process.env.MUSAFETY_GH_BIN || 'gh';
+  const ghBin = process.env.GUARDEX_GH_BIN || 'gh';
   if (run(ghBin, ['--version']).status !== 0) {
     summary.enabled = false;
     summary.details.push(`Skipped auto-finish sweep (${ghBin} not available).`);
@@ -3151,12 +3151,12 @@ function parseNpmVersionOutput(stdout) {
   }
 }
 
-function checkForMusafetyUpdate() {
-  if (envFlagEnabled('MUSAFETY_SKIP_UPDATE_CHECK')) {
+function checkForGuardexUpdate() {
+  if (envFlagEnabled('GUARDEX_SKIP_UPDATE_CHECK')) {
     return { checked: false, reason: 'disabled' };
   }
 
-  const forceCheck = envFlagEnabled('MUSAFETY_FORCE_UPDATE_CHECK');
+  const forceCheck = envFlagEnabled('GUARDEX_FORCE_UPDATE_CHECK');
   if (!forceCheck && !isInteractiveTerminal()) {
     return { checked: false, reason: 'non-interactive' };
   }
@@ -3188,14 +3188,14 @@ function printUpdateAvailableBanner(current, latest) {
 }
 
 function maybeSelfUpdateBeforeStatus() {
-  const check = checkForMusafetyUpdate();
+  const check = checkForGuardexUpdate();
   if (!check.checked || !check.updateAvailable) {
     return;
   }
 
   printUpdateAvailableBanner(check.current, check.latest);
 
-  const autoApproval = parseAutoApproval('MUSAFETY_AUTO_UPDATE_APPROVAL');
+  const autoApproval = parseAutoApproval('GUARDEX_AUTO_UPDATE_APPROVAL');
   const interactive = isInteractiveTerminal();
 
   if (!interactive && autoApproval == null) {
@@ -3224,11 +3224,11 @@ function maybeSelfUpdateBeforeStatus() {
 }
 
 function checkForOpenSpecPackageUpdate() {
-  if (envFlagEnabled('MUSAFETY_SKIP_OPENSPEC_UPDATE_CHECK')) {
+  if (envFlagEnabled('GUARDEX_SKIP_OPENSPEC_UPDATE_CHECK')) {
     return { checked: false, reason: 'disabled' };
   }
 
-  const forceCheck = envFlagEnabled('MUSAFETY_FORCE_OPENSPEC_UPDATE_CHECK');
+  const forceCheck = envFlagEnabled('GUARDEX_FORCE_OPENSPEC_UPDATE_CHECK');
   if (!forceCheck && !isInteractiveTerminal()) {
     return { checked: false, reason: 'non-interactive' };
   }
@@ -3278,7 +3278,7 @@ function maybeOpenSpecUpdateBeforeStatus() {
 
   printOpenSpecUpdateAvailableBanner(check.current, check.latest);
 
-  const autoApproval = parseAutoApproval('MUSAFETY_AUTO_OPENSPEC_UPDATE_APPROVAL');
+  const autoApproval = parseAutoApproval('GUARDEX_AUTO_OPENSPEC_UPDATE_APPROVAL');
   const interactive = isInteractiveTerminal();
 
   if (!interactive && autoApproval == null) {

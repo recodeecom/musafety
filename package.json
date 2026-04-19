@@ -1,13 +1,12 @@
 {
   "name": "@imdeadpool/guardex",
-  "version": "5.0.17",
+  "version": "6.0.0",
   "description": "GuardeX: the Guardian T-Rex for your repo, with hardened multi-agent git guardrails.",
   "license": "MIT",
   "preferGlobal": true,
   "bin": {
     "guardex": "bin/multiagent-safety.js",
     "gx": "bin/multiagent-safety.js",
-    "musafety": "bin/multiagent-safety.js",
     "multiagent-safety": "bin/multiagent-safety.js"
   },
   "scripts": {
