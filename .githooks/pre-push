@@ -10,7 +10,7 @@ if [[ -n "${VSCODE_GIT_IPC_HANDLE:-}" || -n "${VSCODE_GIT_ASKPASS_NODE:-}" || -n
   is_vscode_git_context=1
 fi
 
-allow_vscode_protected_raw="${MUSAFETY_ALLOW_VSCODE_PROTECTED_BRANCH_WRITES:-$(git config --get multiagent.allowVscodeProtectedBranchWrites || true)}"
+allow_vscode_protected_raw="${GUARDEX_ALLOW_VSCODE_PROTECTED_BRANCH_WRITES:-$(git config --get multiagent.allowVscodeProtectedBranchWrites || true)}"
 if [[ -z "$allow_vscode_protected_raw" ]]; then
   allow_vscode_protected_raw="false"
 fi
@@ -28,7 +28,7 @@ if [[ -n "${CODEX_THREAD_ID:-}" || -n "${OMX_SESSION_ID:-}" || "${CODEX_CI:-0}" 
   is_codex_session=1
 fi
 
-protected_branches_raw="${MUSAFETY_PROTECTED_BRANCHES:-$(git config --get multiagent.protectedBranches || true)}"
+protected_branches_raw="${GUARDEX_PROTECTED_BRANCHES:-$(git config --get multiagent.protectedBranches || true)}"
 if [[ -z "$protected_branches_raw" ]]; then
   protected_branches_raw="dev main master"
 fi

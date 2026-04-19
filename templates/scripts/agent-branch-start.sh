@@ -6,10 +6,10 @@ AGENT_NAME="agent"
 BASE_BRANCH=""
 BASE_BRANCH_EXPLICIT=0
 WORKTREE_ROOT_REL=".omx/agent-worktrees"
-OPENSPEC_AUTO_INIT_RAW="${MUSAFETY_OPENSPEC_AUTO_INIT:-false}"
-OPENSPEC_PLAN_SLUG_OVERRIDE="${MUSAFETY_OPENSPEC_PLAN_SLUG:-}"
-OPENSPEC_CHANGE_SLUG_OVERRIDE="${MUSAFETY_OPENSPEC_CHANGE_SLUG:-}"
-OPENSPEC_CAPABILITY_SLUG_OVERRIDE="${MUSAFETY_OPENSPEC_CAPABILITY_SLUG:-}"
+OPENSPEC_AUTO_INIT_RAW="${GUARDEX_OPENSPEC_AUTO_INIT:-false}"
+OPENSPEC_PLAN_SLUG_OVERRIDE="${GUARDEX_OPENSPEC_PLAN_SLUG:-}"
+OPENSPEC_CHANGE_SLUG_OVERRIDE="${GUARDEX_OPENSPEC_CHANGE_SLUG:-}"
+OPENSPEC_CAPABILITY_SLUG_OVERRIDE="${GUARDEX_OPENSPEC_CAPABILITY_SLUG:-}"
 POSITIONAL_ARGS=()
 
 while [[ $# -gt 0 ]]; do
@@ -134,8 +134,8 @@ compose_branch_descriptor() {
   local snapshot_slug="$1"
   local task_slug="$2"
   local snapshot_max task_max task_part snapshot_part checksum_input checksum_part
-  snapshot_max="$(normalize_positive_int "${MUSAFETY_BRANCH_SNAPSHOT_SLUG_MAX:-18}" "18")"
-  task_max="$(normalize_positive_int "${MUSAFETY_BRANCH_TASK_SLUG_MAX:-36}" "36")"
+  snapshot_max="$(normalize_positive_int "${GUARDEX_BRANCH_SNAPSHOT_SLUG_MAX:-18}" "18")"
+  task_max="$(normalize_positive_int "${GUARDEX_BRANCH_TASK_SLUG_MAX:-36}" "36")"
   task_part="$(shorten_slug "$task_slug" "$task_max")"
   if [[ -n "$snapshot_slug" ]]; then
     snapshot_part="$(shorten_slug "$snapshot_slug" "$snapshot_max")"
@@ -193,13 +193,13 @@ resolve_openspec_capability_slug() {
 }
 
 resolve_active_codex_snapshot_name() {
-  local override="${MUSAFETY_CODEX_AUTH_SNAPSHOT:-}"
+  local override="${GUARDEX_CODEX_AUTH_SNAPSHOT:-}"
   if [[ -n "$override" ]]; then
     printf '%s' "$override"
     return 0
   fi
 
-  local codex_auth_bin="${MUSAFETY_CODEX_AUTH_BIN:-codex-auth}"
+  local codex_auth_bin="${GUARDEX_CODEX_AUTH_BIN:-codex-auth}"
   if ! command -v "$codex_auth_bin" >/dev/null 2>&1; then
     return 0
   fi
@@ -227,7 +227,7 @@ has_local_changes() {
 resolve_protected_branches() {
   local root="$1"
   local raw
-  raw="${MUSAFETY_PROTECTED_BRANCHES:-$(git -C "$root" config --get multiagent.protectedBranches || true)}"
+  raw="${GUARDEX_PROTECTED_BRANCHES:-$(git -C "$root" config --get multiagent.protectedBranches || true)}"
   if [[ -z "$raw" ]]; then
     raw="dev main master"
   fi
@@ -413,7 +413,7 @@ fi
 
 task_slug="$(sanitize_slug "$TASK_NAME" "task")"
 agent_slug_raw="$(sanitize_slug "$AGENT_NAME" "agent")"
-agent_slug="$(shorten_slug "$agent_slug_raw" "${MUSAFETY_BRANCH_AGENT_SLUG_MAX:-24}")"
+agent_slug="$(shorten_slug "$agent_slug_raw" "${GUARDEX_BRANCH_AGENT_SLUG_MAX:-24}")"
 snapshot_name="$(resolve_active_codex_snapshot_name)"
 snapshot_slug="$(sanitize_optional_slug "$snapshot_name" "snapshot")"
 branch_descriptor="$(compose_branch_descriptor "$snapshot_slug" "$task_slug")"
@@ -446,7 +446,7 @@ current_branch="$(git -C "$repo_root" rev-parse --abbrev-ref HEAD 2>/dev/null ||
 protected_branches_raw="$(resolve_protected_branches "$repo_root")"
 if [[ -n "$current_branch" && "$current_branch" != "HEAD" ]] && is_protected_branch_name "$current_branch" "$protected_branches_raw"; then
   if has_local_changes "$repo_root"; then
-    auto_transfer_message="musafety-auto-transfer-${timestamp}-${agent_slug}-${task_slug}"
+    auto_transfer_message="guardex-auto-transfer-${timestamp}-${agent_slug}-${task_slug}"
     if git -C "$repo_root" stash push --include-untracked --message "$auto_transfer_message" >/dev/null 2>&1; then
       auto_transfer_stash_ref="$(
         git -C "$repo_root" stash list \
@@ -461,7 +461,7 @@ if [[ -n "$current_branch" && "$current_branch" != "HEAD" ]] && is_protected_bra
 fi
 
 git -C "$repo_root" worktree add -b "$branch_name" "$worktree_path" "$start_ref"
-git -C "$repo_root" config "branch.${branch_name}.musafetyBase" "$BASE_BRANCH" >/dev/null 2>&1 || true
+git -C "$repo_root" config "branch.${branch_name}.guardexBase" "$BASE_BRANCH" >/dev/null 2>&1 || true
 
 if git -C "$repo_root" show-ref --verify --quiet "refs/remotes/origin/${BASE_BRANCH}"; then
   git -C "$worktree_path" branch --set-upstream-to="origin/${BASE_BRANCH}" "$branch_name" >/dev/null 2>&1 || true

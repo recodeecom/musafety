@@ -28,7 +28,7 @@ if [[ -n "${VSCODE_GIT_IPC_HANDLE:-}" || -n "${VSCODE_GIT_ASKPASS_NODE:-}" || -n
   is_vscode_git_context=1
 fi
 
-allow_vscode_protected_raw="${MUSAFETY_ALLOW_VSCODE_PROTECTED_BRANCH_WRITES:-$(git config --get multiagent.allowVscodeProtectedBranchWrites || true)}"
+allow_vscode_protected_raw="${GUARDEX_ALLOW_VSCODE_PROTECTED_BRANCH_WRITES:-$(git config --get multiagent.allowVscodeProtectedBranchWrites || true)}"
 if [[ -z "$allow_vscode_protected_raw" ]]; then
   allow_vscode_protected_raw="false"
 fi
@@ -41,7 +41,7 @@ case "$allow_vscode_protected" in
   *) allow_vscode_protected_branch_writes=0 ;;
 esac
 
-protected_branches_raw="${MUSAFETY_PROTECTED_BRANCHES:-$(git config --get multiagent.protectedBranches || true)}"
+protected_branches_raw="${GUARDEX_PROTECTED_BRANCHES:-$(git config --get multiagent.protectedBranches || true)}"
 if [[ -z "$protected_branches_raw" ]]; then
   protected_branches_raw="dev main master"
 fi
@@ -55,7 +55,7 @@ for protected_branch in $protected_branches_raw; do
   fi
 done
 
-codex_require_agent_branch_raw="${MUSAFETY_CODEX_REQUIRE_AGENT_BRANCH:-$(git config --get multiagent.codexRequireAgentBranch || true)}"
+codex_require_agent_branch_raw="${GUARDEX_CODEX_REQUIRE_AGENT_BRANCH:-$(git config --get multiagent.codexRequireAgentBranch || true)}"
 if [[ -z "$codex_require_agent_branch_raw" ]]; then
   codex_require_agent_branch_raw="true"
 fi
@@ -86,7 +86,7 @@ if [[ "$is_codex_session" == "1" && "$is_protected_branch" == "1" ]]; then
   fi
 fi
 
-if [[ "$should_require_codex_agent_branch" == "1" && "${MUSAFETY_ALLOW_CODEX_ON_NON_AGENT:-0}" != "1" ]]; then
+if [[ "$should_require_codex_agent_branch" == "1" && "${GUARDEX_ALLOW_CODEX_ON_NON_AGENT:-0}" != "1" ]]; then
   if [[ "$is_codex_session" == "1" && "$branch" != agent/* ]]; then
     if [[ "$is_protected_branch" == "1" ]]; then
       if [[ "$is_codex_managed_only_commit_on_protected" == "1" ]]; then
@@ -103,7 +103,7 @@ Or manually:
 Then commit from the created agent/* branch.
 
 Temporary bypass (not recommended):
-  MUSAFETY_ALLOW_CODEX_ON_NON_AGENT=1 git commit ...
+  GUARDEX_ALLOW_CODEX_ON_NON_AGENT=1 git commit ...
 MSG
       exit 1
     fi
@@ -115,7 +115,7 @@ Use isolated branch/worktree first:
 Then commit from the created agent/* branch.
 
 Temporary bypass (not recommended):
-  MUSAFETY_ALLOW_CODEX_ON_NON_AGENT=1 git commit ...
+  GUARDEX_ALLOW_CODEX_ON_NON_AGENT=1 git commit ...
 Disable this rule for a repo (not recommended):
   git config multiagent.codexRequireAgentBranch false
 MSG
@@ -169,7 +169,7 @@ MSG
 fi
 
 if [[ "$branch" == agent/* ]]; then
-  if [[ "${MUSAFETY_AUTOCLAIM_STAGED_LOCKS:-1}" == "1" ]]; then
+  if [[ "${GUARDEX_AUTOCLAIM_STAGED_LOCKS:-1}" == "1" ]]; then
     while IFS= read -r staged_file; do
       [[ -z "$staged_file" ]] && continue
       [[ "$staged_file" == ".omx/state/agent-file-locks.json" ]] && continue

@@ -9,15 +9,15 @@ PUSH_ENABLED=1
 DELETE_REMOTE_BRANCH=0
 DELETE_REMOTE_BRANCH_EXPLICIT=0
 MERGE_MODE="auto"
-GH_BIN="${MUSAFETY_GH_BIN:-gh}"
-CLEANUP_AFTER_MERGE_RAW="${MUSAFETY_FINISH_CLEANUP:-false}"
-WAIT_FOR_MERGE_RAW="${MUSAFETY_FINISH_WAIT_FOR_MERGE:-false}"
-WAIT_TIMEOUT_SECONDS_RAW="${MUSAFETY_FINISH_WAIT_TIMEOUT_SECONDS:-1800}"
-WAIT_POLL_SECONDS_RAW="${MUSAFETY_FINISH_WAIT_POLL_SECONDS:-10}"
-REQUIRE_REMOTE_GATES_RAW="${MUSAFETY_REQUIRE_REMOTE_GATES:-false}"
-ENFORCE_AGENT_CLEANUP_RAW="${MUSAFETY_ENFORCE_AGENT_CLEANUP:-true}"
-PR_REF="${MUSAFETY_GH_PR_REF:-}"
-GH_REPO_REF="${MUSAFETY_GH_REPO:-}"
+GH_BIN="${GUARDEX_GH_BIN:-gh}"
+CLEANUP_AFTER_MERGE_RAW="${GUARDEX_FINISH_CLEANUP:-false}"
+WAIT_FOR_MERGE_RAW="${GUARDEX_FINISH_WAIT_FOR_MERGE:-false}"
+WAIT_TIMEOUT_SECONDS_RAW="${GUARDEX_FINISH_WAIT_TIMEOUT_SECONDS:-1800}"
+WAIT_POLL_SECONDS_RAW="${GUARDEX_FINISH_WAIT_POLL_SECONDS:-10}"
+REQUIRE_REMOTE_GATES_RAW="${GUARDEX_REQUIRE_REMOTE_GATES:-false}"
+ENFORCE_AGENT_CLEANUP_RAW="${GUARDEX_ENFORCE_AGENT_CLEANUP:-true}"
+PR_REF="${GUARDEX_GH_PR_REF:-}"
+GH_REPO_REF="${GUARDEX_GH_REPO:-}"
 NO_CLEANUP_REQUESTED=0
 
 normalize_bool() {
@@ -240,7 +240,7 @@ if [[ "$BASE_BRANCH_EXPLICIT" -eq 0 ]]; then
 fi
 
 if [[ -z "$BASE_BRANCH" ]]; then
-  branch_stored_base="$(git -C "$repo_root" config --get "branch.${SOURCE_BRANCH}.musafetyBase" || true)"
+  branch_stored_base="$(git -C "$repo_root" config --get "branch.${SOURCE_BRANCH}.guardexBase" || true)"
   if [[ -n "$branch_stored_base" ]]; then
     BASE_BRANCH="$branch_stored_base"
   fi
@@ -325,7 +325,7 @@ validate_openspec_tasks_gate() {
     return 0
   fi
 
-  helper_base="$(git -C "$repo_root" config --get "branch.${branch}.musafetyBase" || true)"
+  helper_base="$(git -C "$repo_root" config --get "branch.${branch}.guardexBase" || true)"
   if [[ "$BASE_BRANCH" == agent/* ]] || [[ "$helper_base" == agent/* ]]; then
     if [[ -z "$helper_base" && "$BASE_BRANCH" == agent/* ]]; then
       helper_base="$BASE_BRANCH"

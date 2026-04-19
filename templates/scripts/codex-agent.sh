@@ -1,19 +1,19 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-TASK_NAME="${MUSAFETY_TASK_NAME:-task}"
-AGENT_NAME="${MUSAFETY_AGENT_NAME:-agent}"
-BASE_BRANCH="${MUSAFETY_BASE_BRANCH:-}"
+TASK_NAME="${GUARDEX_TASK_NAME:-task}"
+AGENT_NAME="${GUARDEX_AGENT_NAME:-agent}"
+BASE_BRANCH="${GUARDEX_BASE_BRANCH:-}"
 BASE_BRANCH_EXPLICIT=0
-CODEX_BIN="${MUSAFETY_CODEX_BIN:-codex}"
-AUTO_FINISH_RAW="${MUSAFETY_CODEX_AUTO_FINISH:-true}"
-AUTO_REVIEW_ON_CONFLICT_RAW="${MUSAFETY_CODEX_AUTO_REVIEW_ON_CONFLICT:-true}"
-AUTO_CLEANUP_RAW="${MUSAFETY_CODEX_AUTO_CLEANUP:-true}"
-AUTO_WAIT_FOR_MERGE_RAW="${MUSAFETY_CODEX_WAIT_FOR_MERGE:-true}"
-OPENSPEC_AUTO_INIT_RAW="${MUSAFETY_OPENSPEC_AUTO_INIT:-true}"
-OPENSPEC_PLAN_SLUG_OVERRIDE="${MUSAFETY_OPENSPEC_PLAN_SLUG:-}"
-OPENSPEC_CHANGE_SLUG_OVERRIDE="${MUSAFETY_OPENSPEC_CHANGE_SLUG:-}"
-OPENSPEC_CAPABILITY_SLUG_OVERRIDE="${MUSAFETY_OPENSPEC_CAPABILITY_SLUG:-}"
+CODEX_BIN="${GUARDEX_CODEX_BIN:-codex}"
+AUTO_FINISH_RAW="${GUARDEX_CODEX_AUTO_FINISH:-true}"
+AUTO_REVIEW_ON_CONFLICT_RAW="${GUARDEX_CODEX_AUTO_REVIEW_ON_CONFLICT:-true}"
+AUTO_CLEANUP_RAW="${GUARDEX_CODEX_AUTO_CLEANUP:-true}"
+AUTO_WAIT_FOR_MERGE_RAW="${GUARDEX_CODEX_WAIT_FOR_MERGE:-true}"
+OPENSPEC_AUTO_INIT_RAW="${GUARDEX_OPENSPEC_AUTO_INIT:-true}"
+OPENSPEC_PLAN_SLUG_OVERRIDE="${GUARDEX_OPENSPEC_PLAN_SLUG:-}"
+OPENSPEC_CHANGE_SLUG_OVERRIDE="${GUARDEX_OPENSPEC_CHANGE_SLUG:-}"
+OPENSPEC_CAPABILITY_SLUG_OVERRIDE="${GUARDEX_OPENSPEC_CAPABILITY_SLUG:-}"
 
 normalize_bool() {
   local raw="${1:-}"
@@ -275,7 +275,7 @@ start_sandbox_fallback() {
   fi
 
   git -C "$repo_root" worktree add -b "$branch_name" "$worktree_path" "$start_ref" >/dev/null
-  git -C "$repo_root" config "branch.${branch_name}.musafetyBase" "$base_branch" >/dev/null 2>&1 || true
+  git -C "$repo_root" config "branch.${branch_name}.guardexBase" "$base_branch" >/dev/null 2>&1 || true
   if git -C "$repo_root" show-ref --verify --quiet "refs/remotes/origin/${base_branch}"; then
     git -C "$worktree_path" branch --set-upstream-to="origin/${base_branch}" "$branch_name" >/dev/null 2>&1 || true
   fi
@@ -298,7 +298,7 @@ initial_repo_branch="$(git -C "$repo_root" rev-parse --abbrev-ref HEAD 2>/dev/nu
 start_output=""
 start_status=0
 set +e
-start_output="$(MUSAFETY_OPENSPEC_AUTO_INIT=0 bash "${repo_root}/scripts/agent-branch-start.sh" "${start_args[@]}" 2>&1)"
+start_output="$(GUARDEX_OPENSPEC_AUTO_INIT=0 bash "${repo_root}/scripts/agent-branch-start.sh" "${start_args[@]}" 2>&1)"
 start_status=$?
 set -e
 
@@ -548,7 +548,7 @@ auto_commit_worktree_changes() {
   fi
 
   local default_message="Auto-finish: ${TASK_NAME}"
-  local commit_message="${MUSAFETY_CODEX_AUTO_COMMIT_MESSAGE:-$default_message}"
+  local commit_message="${GUARDEX_CODEX_AUTO_COMMIT_MESSAGE:-$default_message}"
   local commit_output=""
 
   if commit_output="$(git -C "$wt" commit -m "$commit_message" 2>&1)"; then
@@ -662,8 +662,8 @@ run_finish_flow() {
   fi
 
   if has_origin_remote; then
-    if ! command -v "${MUSAFETY_GH_BIN:-gh}" >/dev/null 2>&1 && ! command -v gh >/dev/null 2>&1; then
-      echo "[codex-agent] Auto-finish requires GitHub CLI for PR flow; command not found: ${MUSAFETY_GH_BIN:-gh}" >&2
+    if ! command -v "${GUARDEX_GH_BIN:-gh}" >/dev/null 2>&1 && ! command -v gh >/dev/null 2>&1; then
+      echo "[codex-agent] Auto-finish requires GitHub CLI for PR flow; command not found: ${GUARDEX_GH_BIN:-gh}" >&2
       return 2
     fi
     finish_args+=(--via-pr)

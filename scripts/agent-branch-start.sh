@@ -6,13 +6,13 @@ AGENT_NAME="agent"
 BASE_BRANCH=""
 BASE_BRANCH_EXPLICIT=0
 WORKTREE_ROOT_REL=".omx/agent-worktrees"
-OPENSPEC_AUTO_INIT_RAW="${GX_OPENSPEC_AUTO_INIT:-${MUSAFETY_OPENSPEC_AUTO_INIT:-true}}"
-GH_SYNC_ON_START_RAW="${MUSAFETY_GH_SYNC_ON_START:-true}"
-OPENSPEC_PLAN_SLUG_OVERRIDE="${MUSAFETY_OPENSPEC_PLAN_SLUG:-}"
-OPENSPEC_CHANGE_SLUG_OVERRIDE="${MUSAFETY_OPENSPEC_CHANGE_SLUG:-}"
-OPENSPEC_CAPABILITY_SLUG_OVERRIDE="${MUSAFETY_OPENSPEC_CAPABILITY_SLUG:-}"
-PR_REF="${MUSAFETY_GH_PR_REF:-}"
-GH_REPO_REF="${MUSAFETY_GH_REPO:-}"
+OPENSPEC_AUTO_INIT_RAW="${GX_OPENSPEC_AUTO_INIT:-${GUARDEX_OPENSPEC_AUTO_INIT:-true}}"
+GH_SYNC_ON_START_RAW="${GUARDEX_GH_SYNC_ON_START:-true}"
+OPENSPEC_PLAN_SLUG_OVERRIDE="${GUARDEX_OPENSPEC_PLAN_SLUG:-}"
+OPENSPEC_CHANGE_SLUG_OVERRIDE="${GUARDEX_OPENSPEC_CHANGE_SLUG:-}"
+OPENSPEC_CAPABILITY_SLUG_OVERRIDE="${GUARDEX_OPENSPEC_CAPABILITY_SLUG:-}"
+PR_REF="${GUARDEX_GH_PR_REF:-}"
+GH_REPO_REF="${GUARDEX_GH_REPO:-}"
 POSITIONAL_ARGS=()
 
 while [[ $# -gt 0 ]]; do
@@ -153,8 +153,8 @@ compose_branch_descriptor() {
   local snapshot_slug="$1"
   local task_slug="$2"
   local snapshot_max task_max task_part snapshot_part checksum_input checksum_part
-  snapshot_max="$(normalize_positive_int "${MUSAFETY_BRANCH_SNAPSHOT_SLUG_MAX:-18}" "18")"
-  task_max="$(normalize_positive_int "${MUSAFETY_BRANCH_TASK_SLUG_MAX:-36}" "36")"
+  snapshot_max="$(normalize_positive_int "${GUARDEX_BRANCH_SNAPSHOT_SLUG_MAX:-18}" "18")"
+  task_max="$(normalize_positive_int "${GUARDEX_BRANCH_TASK_SLUG_MAX:-36}" "36")"
   task_part="$(shorten_slug "$task_slug" "$task_max")"
   if [[ -n "$snapshot_slug" ]]; then
     snapshot_part="$(shorten_slug "$snapshot_slug" "$snapshot_max")"
@@ -218,13 +218,13 @@ resolve_openspec_capability_slug() {
 }
 
 resolve_active_codex_snapshot_name() {
-  local override="${MUSAFETY_CODEX_AUTH_SNAPSHOT:-}"
+  local override="${GUARDEX_CODEX_AUTH_SNAPSHOT:-}"
   if [[ -n "$override" ]]; then
     printf '%s' "$override"
     return 0
   fi
 
-  local codex_auth_bin="${MUSAFETY_CODEX_AUTH_BIN:-codex-auth}"
+  local codex_auth_bin="${GUARDEX_CODEX_AUTH_BIN:-codex-auth}"
   if ! command -v "$codex_auth_bin" >/dev/null 2>&1; then
     return 0
   fi
@@ -252,7 +252,7 @@ has_local_changes() {
 resolve_protected_branches() {
   local root="$1"
   local raw
-  raw="${MUSAFETY_PROTECTED_BRANCHES:-$(git -C "$root" config --get multiagent.protectedBranches || true)}"
+  raw="${GUARDEX_PROTECTED_BRANCHES:-$(git -C "$root" config --get multiagent.protectedBranches || true)}"
   if [[ -z "$raw" ]]; then
     raw="dev main master"
   fi
@@ -488,7 +488,7 @@ bootstrap_manifest_path_for_worktree() {
   if [[ -z "$git_dir" ]]; then
     return 1
   fi
-  printf '%s/musafety-bootstrap-manifest.json' "$git_dir"
+  printf '%s/guardex-bootstrap-manifest.json' "$git_dir"
 }
 
 record_worktree_bootstrap_manifest() {
@@ -959,7 +959,7 @@ fi
 
 task_slug="$(sanitize_slug "$TASK_NAME" "task")"
 agent_slug_raw="$(sanitize_slug "$AGENT_NAME" "agent")"
-agent_slug="$(shorten_slug "$agent_slug_raw" "${MUSAFETY_BRANCH_AGENT_SLUG_MAX:-24}")"
+agent_slug="$(shorten_slug "$agent_slug_raw" "${GUARDEX_BRANCH_AGENT_SLUG_MAX:-24}")"
 snapshot_name="$(resolve_active_codex_snapshot_name)"
 snapshot_slug="$(sanitize_optional_slug "$snapshot_name" "snapshot")"
 branch_descriptor="$(compose_branch_descriptor "$snapshot_slug" "$task_slug")"
@@ -1011,7 +1011,7 @@ fi
 
 if [[ "$reused_existing_worktree" -eq 0 ]]; then
   git -C "$repo_root" worktree add -b "$branch_name" "$worktree_path" "$start_ref"
-  git -C "$repo_root" config "branch.${branch_name}.musafetyBase" "$BASE_BRANCH" >/dev/null 2>&1 || true
+  git -C "$repo_root" config "branch.${branch_name}.guardexBase" "$BASE_BRANCH" >/dev/null 2>&1 || true
 
   if git -C "$repo_root" show-ref --verify --quiet "refs/remotes/origin/${BASE_BRANCH}"; then
     git -C "$worktree_path" branch --set-upstream-to="origin/${BASE_BRANCH}" "$branch_name" >/dev/null 2>&1 || true

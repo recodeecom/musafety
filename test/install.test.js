@@ -47,7 +47,7 @@ function runCmd(cmd, args, cwd, options = {}) {
 }
 
 function createFakeNpmScript(scriptBody) {
-  const fakeBin = fs.mkdtempSync(path.join(os.tmpdir(), 'musafety-fake-npm-'));
+  const fakeBin = fs.mkdtempSync(path.join(os.tmpdir(), 'guardex-fake-npm-'));
   const fakeNpmPath = path.join(fakeBin, 'npm');
   fs.writeFileSync(fakeNpmPath, `#!/usr/bin/env bash\nset -e\n${scriptBody}\n`, 'utf8');
   fs.chmodSync(fakeNpmPath, 0o755);
@@ -55,7 +55,7 @@ function createFakeNpmScript(scriptBody) {
 }
 
 function createFakeOpenSpecScript(scriptBody) {
-  const fakeBin = fs.mkdtempSync(path.join(os.tmpdir(), 'musafety-fake-openspec-'));
+  const fakeBin = fs.mkdtempSync(path.join(os.tmpdir(), 'guardex-fake-openspec-'));
   const fakeOpenSpecPath = path.join(fakeBin, 'openspec');
   fs.writeFileSync(fakeOpenSpecPath, `#!/usr/bin/env bash\nset -e\n${scriptBody}\n`, 'utf8');
   fs.chmodSync(fakeOpenSpecPath, 0o755);
@@ -63,7 +63,7 @@ function createFakeOpenSpecScript(scriptBody) {
 }
 
 function createFakeScorecardScript(scriptBody) {
-  const fakeBin = fs.mkdtempSync(path.join(os.tmpdir(), 'musafety-fake-scorecard-'));
+  const fakeBin = fs.mkdtempSync(path.join(os.tmpdir(), 'guardex-fake-scorecard-'));
   const fakePath = path.join(fakeBin, 'scorecard');
   fs.writeFileSync(fakePath, `#!/usr/bin/env bash\nset -e\n${scriptBody}\n`, 'utf8');
   fs.chmodSync(fakePath, 0o755);
@@ -71,7 +71,7 @@ function createFakeScorecardScript(scriptBody) {
 }
 
 function createFakeCodexAuthScript(scriptBody) {
-  const fakeBin = fs.mkdtempSync(path.join(os.tmpdir(), 'musafety-fake-codex-auth-'));
+  const fakeBin = fs.mkdtempSync(path.join(os.tmpdir(), 'guardex-fake-codex-auth-'));
   const fakePath = path.join(fakeBin, 'codex-auth');
   fs.writeFileSync(fakePath, `#!/usr/bin/env bash\nset -e\n${scriptBody}\n`, 'utf8');
   fs.chmodSync(fakePath, 0o755);
@@ -79,7 +79,7 @@ function createFakeCodexAuthScript(scriptBody) {
 }
 
 function createFakeGhScript(scriptBody) {
-  const fakeBin = fs.mkdtempSync(path.join(os.tmpdir(), 'musafety-fake-gh-'));
+  const fakeBin = fs.mkdtempSync(path.join(os.tmpdir(), 'guardex-fake-gh-'));
   const fakePath = path.join(fakeBin, 'gh');
   fs.writeFileSync(fakePath, `#!/usr/bin/env bash\nset -e\n${scriptBody}\n`, 'utf8');
   fs.chmodSync(fakePath, 0o755);
@@ -87,7 +87,7 @@ function createFakeGhScript(scriptBody) {
 }
 
 function initRepo() {
-  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'musafety-'));
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'guardex-'));
   const repoDir = path.join(tempDir, 'repo');
   fs.mkdirSync(repoDir);
 
@@ -131,7 +131,7 @@ function attachOriginRemote(repoDir) {
 }
 
 function attachOriginRemoteForBranch(repoDir, branchName) {
-  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'musafety-origin-'));
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'guardex-origin-'));
   const originPath = path.join(tempDir, 'origin.git');
 
   let result = runCmd('git', ['init', '--bare', originPath], repoDir);
@@ -743,7 +743,7 @@ echo "unexpected gh args: $*" >&2
 exit 1
 `);
 
-  result = runNodeWithEnv(['doctor', '--target', repoDir], repoDir, { MUSAFETY_GH_BIN: fakeGhPath });
+  result = runNodeWithEnv(['doctor', '--target', repoDir], repoDir, { GUARDEX_GH_BIN: fakeGhPath });
   assert.equal(result.status, 0, result.stderr || result.stdout);
   assert.match(result.stdout, /Auto-committed doctor repairs in sandbox branch/);
   assert.match(result.stdout, /Auto-finish flow completed for sandbox branch/);
@@ -810,14 +810,14 @@ if [[ "$1" == "pr" && "$2" == "view" ]]; then
   exit 1
 fi
 if [[ "$1" == "pr" && "$2" == "merge" ]]; then
-  echo "X Pull request recodeecom/musafety#999 is not mergeable: the base branch policy prohibits the merge." >&2
+  echo "X Pull request recodeecom/guardex#999 is not mergeable: the base branch policy prohibits the merge." >&2
   exit 1
 fi
 echo "unexpected gh args: $*" >&2
 exit 1
 `);
 
-  result = runNodeWithEnv(['doctor', '--target', repoDir], repoDir, { MUSAFETY_GH_BIN: fakeGhPath });
+  result = runNodeWithEnv(['doctor', '--target', repoDir], repoDir, { GUARDEX_GH_BIN: fakeGhPath });
   assert.notEqual(result.status, 0, result.stderr || result.stdout);
   const ghCalls = fs.readFileSync(ghLogPath, 'utf8');
   assert.match(ghCalls, /pr merge/);
@@ -891,7 +891,7 @@ exit 1
 `);
 
   result = runNodeWithEnv(['doctor', '--target', repoDir], repoDir, {
-    MUSAFETY_GH_BIN: fakeGhPath,
+    GUARDEX_GH_BIN: fakeGhPath,
   });
   assert.equal(result.status, 0, result.stderr || result.stdout);
 
@@ -1030,7 +1030,7 @@ test('setup agent-branch-start supports explicit snapshot override without codex
     'bash',
     ['scripts/agent-branch-start.sh', 'ship-fix', 'bot', 'dev'],
     repoDir,
-    { env: { MUSAFETY_CODEX_AUTH_SNAPSHOT: 'Prod Snapshot One' } },
+    { env: { GUARDEX_CODEX_AUTH_SNAPSHOT: 'Prod Snapshot One' } },
   );
   assert.equal(result.status, 0, result.stderr || result.stdout);
   assert.match(result.stdout, /Created branch: agent\/bot\/prod-snapshot-one-ship-fix-[0-9]{6}(?:-\d+)?/);
@@ -1052,7 +1052,7 @@ test('setup agent-branch-start compacts long snapshot/task names for readable br
       'dev',
     ],
     repoDir,
-    { env: { MUSAFETY_CODEX_AUTH_SNAPSHOT: 'Zeus Portasmosonmagyarovar Hu Snapshot' } },
+    { env: { GUARDEX_CODEX_AUTH_SNAPSHOT: 'Zeus Portasmosonmagyarovar Hu Snapshot' } },
   );
   assert.equal(result.status, 0, result.stderr || result.stdout);
   const createdBranch = extractCreatedBranch(result.stdout);
@@ -1074,7 +1074,7 @@ test('setup agent-branch-start supports optional OpenSpec auto-bootstrap toggles
     'bash',
     ['scripts/agent-branch-start.sh', 'openspec-default', 'bot', 'dev'],
     repoDir,
-    { env: { MUSAFETY_OPENSPEC_AUTO_INIT: 'true' } },
+    { env: { GUARDEX_OPENSPEC_AUTO_INIT: 'true' } },
   );
   assert.equal(result.status, 0, result.stderr || result.stdout);
   const defaultBranch = extractCreatedBranch(result.stdout);
@@ -1118,7 +1118,7 @@ test('setup agent-branch-start supports optional OpenSpec auto-bootstrap toggles
     'bash',
     ['scripts/agent-branch-start.sh', 'openspec-disabled', 'bot', 'dev'],
     repoDir,
-    { env: { MUSAFETY_OPENSPEC_AUTO_INIT: 'false' } },
+    { env: { GUARDEX_OPENSPEC_AUTO_INIT: 'false' } },
   );
   assert.equal(result.status, 0, result.stderr || result.stdout);
   const disabledWorktree = extractCreatedWorktree(result.stdout);
@@ -1127,12 +1127,12 @@ test('setup agent-branch-start supports optional OpenSpec auto-bootstrap toggles
   assert.equal(
     fs.existsSync(path.join(disabledWorktree, 'openspec', 'plan', disabledPlanSlug, 'summary.md')),
     false,
-    'OpenSpec auto-bootstrap should be skippable via MUSAFETY_OPENSPEC_AUTO_INIT=false',
+    'OpenSpec auto-bootstrap should be skippable via GUARDEX_OPENSPEC_AUTO_INIT=false',
   );
   assert.equal(
     fs.existsSync(path.join(disabledWorktree, 'openspec', 'changes', disabledChangeSlug, 'proposal.md')),
     false,
-    'OpenSpec change bootstrap should be skippable via MUSAFETY_OPENSPEC_AUTO_INIT=false',
+    'OpenSpec change bootstrap should be skippable via GUARDEX_OPENSPEC_AUTO_INIT=false',
   );
 });
 
@@ -1162,7 +1162,7 @@ test('setup agent-branch-start defaults base to current branch and stores per-br
   assert.equal(upstream.status, 0, upstream.stderr || upstream.stdout);
   assert.equal(upstream.stdout.trim(), 'origin/main');
 
-  const storedBase = runCmd('git', ['config', '--get', `branch.${agentBranch}.musafetyBase`], repoDir);
+  const storedBase = runCmd('git', ['config', '--get', `branch.${agentBranch}.guardexBase`], repoDir);
   assert.equal(storedBase.status, 0, storedBase.stderr || storedBase.stdout);
   assert.equal(storedBase.stdout.trim(), 'main');
 });
@@ -1202,7 +1202,7 @@ test('agent-branch-start prefers current protected branch over stale configured 
   const agentWorktree = extractCreatedWorktree(result.stdout);
   const storedBase = runCmd(
     'git',
-    ['config', '--get', `branch.${extractCreatedBranch(result.stdout)}.musafetyBase`],
+    ['config', '--get', `branch.${extractCreatedBranch(result.stdout)}.guardexBase`],
     repoDir,
   );
   assert.equal(storedBase.status, 0, storedBase.stderr || storedBase.stdout);
@@ -1217,7 +1217,7 @@ test('agent-branch-start prefers current protected branch over stale configured 
 
   const stashList = runCmd('git', ['stash', 'list'], repoDir);
   assert.equal(stashList.status, 0, stashList.stderr || stashList.stdout);
-  assert.doesNotMatch(stashList.stdout, /musafety-auto-transfer-/);
+  assert.doesNotMatch(stashList.stdout, /guardex-auto-transfer-/);
 });
 
 test('agent-branch-start moves protected-branch local changes into the new agent worktree', () => {
@@ -1257,7 +1257,7 @@ test('agent-branch-start moves protected-branch local changes into the new agent
 
   const stashList = runCmd('git', ['stash', 'list'], repoDir);
   assert.equal(stashList.status, 0, stashList.stderr || stashList.stdout);
-  assert.doesNotMatch(stashList.stdout, /musafety-auto-transfer-/);
+  assert.doesNotMatch(stashList.stdout, /guardex-auto-transfer-/);
 });
 
 test('agent-branch-start hydrates codex-agent helper into new worktrees when missing locally', () => {
@@ -1309,11 +1309,11 @@ test('agent-branch-start links dependency node_modules directories into new work
   for (const relativeDir of dependencyDirs) {
     const sourceDir = path.join(repoDir, relativeDir);
     fs.mkdirSync(sourceDir, { recursive: true });
-    fs.writeFileSync(path.join(sourceDir, '.musafety-link-marker'), 'present\n', 'utf8');
+    fs.writeFileSync(path.join(sourceDir, '.guardex-link-marker'), 'present\n', 'utf8');
   }
 
   result = runCmd('bash', ['scripts/agent-branch-start.sh', 'hydrate-deps', 'bot'], repoDir, {
-    MUSAFETY_PROTECTED_BRANCHES: 'main',
+    GUARDEX_PROTECTED_BRANCHES: 'main',
   });
   assert.equal(result.status, 0, result.stderr || result.stdout);
   assert.match(result.stdout, /Linked dependency dir in worktree: node_modules/);
@@ -1328,7 +1328,7 @@ test('agent-branch-start links dependency node_modules directories into new work
     assert.equal(fs.lstatSync(linkedDir).isSymbolicLink(), true, `worktree path should be a symlink: ${relativeDir}`);
     assert.equal(fs.readlinkSync(linkedDir), sourceDir, `symlink should target source dependency dir: ${relativeDir}`);
     assert.equal(
-      fs.existsSync(path.join(linkedDir, '.musafety-link-marker')),
+      fs.existsSync(path.join(linkedDir, '.guardex-link-marker')),
       true,
       `symlink should expose source contents: ${relativeDir}`,
     );
@@ -1676,7 +1676,7 @@ exit 1
 `);
 
   const result = runNodeWithEnv([], repoDir, {
-    MUSAFETY_GH_BIN: fakeGh.fakePath,
+    GUARDEX_GH_BIN: fakeGh.fakePath,
   });
   assert.equal(result.status, 0, result.stderr || result.stdout);
   assert.match(result.stdout, /GitHub \(gh\): active/);
@@ -1699,7 +1699,7 @@ test('warning-only degraded status avoids zero-error wording and improves scan h
 });
 
 test('default invocation outside git repo reports inactive repo service', () => {
-  const outsideDir = fs.mkdtempSync(path.join(os.tmpdir(), 'musafety-non-repo-'));
+  const outsideDir = fs.mkdtempSync(path.join(os.tmpdir(), 'guardex-non-repo-'));
 
   const result = runNode([], outsideDir);
   assert.equal(result.status, 0, result.stderr || result.stdout);
@@ -1729,9 +1729,9 @@ exit 1
 `);
 
   const result = runNodeWithEnv([], repoDir, {
-    MUSAFETY_NPM_BIN: fakeNpm,
-    MUSAFETY_FORCE_UPDATE_CHECK: '1',
-    MUSAFETY_AUTO_UPDATE_APPROVAL: 'yes',
+    GUARDEX_NPM_BIN: fakeNpm,
+    GUARDEX_FORCE_UPDATE_CHECK: '1',
+    GUARDEX_AUTO_UPDATE_APPROVAL: 'yes',
   });
 
   assert.equal(result.status, 0, result.stderr || result.stdout);
@@ -1780,11 +1780,11 @@ exit 1
 `);
 
   const result = runNodeWithEnv([], repoDir, {
-    MUSAFETY_NPM_BIN: fakeNpm,
-    MUSAFETY_OPENSPEC_BIN: fakeOpenSpec,
-    MUSAFETY_SKIP_UPDATE_CHECK: '1',
-    MUSAFETY_FORCE_OPENSPEC_UPDATE_CHECK: '1',
-    MUSAFETY_AUTO_OPENSPEC_UPDATE_APPROVAL: 'yes',
+    GUARDEX_NPM_BIN: fakeNpm,
+    GUARDEX_OPENSPEC_BIN: fakeOpenSpec,
+    GUARDEX_SKIP_UPDATE_CHECK: '1',
+    GUARDEX_FORCE_OPENSPEC_UPDATE_CHECK: '1',
+    GUARDEX_AUTO_OPENSPEC_UPDATE_APPROVAL: 'yes',
   });
 
   assert.equal(result.status, 0, result.stderr || result.stdout);
@@ -2111,13 +2111,13 @@ test('post-merge auto-runs cleanup on base branch and skips non-base branches', 
     path.join(repoDir, 'bin', 'multiagent-safety.js'),
     '#!/usr/bin/env node\n' +
       "const fs = require('node:fs');\n" +
-      "const marker = process.env.MUSAFETY_POST_MERGE_MARKER;\n" +
+      "const marker = process.env.GUARDEX_POST_MERGE_MARKER;\n" +
       "if (marker) fs.appendFileSync(marker, process.argv.slice(2).join(' ') + '\\n', 'utf8');\n",
     'utf8',
   );
 
   let result = runCmd('bash', ['.githooks/post-merge', '0'], repoDir, {
-    MUSAFETY_POST_MERGE_MARKER: markerPath,
+    GUARDEX_POST_MERGE_MARKER: markerPath,
   });
   assert.equal(result.status, 0, result.stderr || result.stdout);
 
@@ -2137,7 +2137,7 @@ test('post-merge auto-runs cleanup on base branch and skips non-base branches', 
   assert.equal(result.status, 0, result.stderr || result.stdout);
 
   result = runCmd('bash', ['.githooks/post-merge', '0'], repoDir, {
-    MUSAFETY_POST_MERGE_MARKER: markerPath,
+    GUARDEX_POST_MERGE_MARKER: markerPath,
   });
   assert.equal(result.status, 0, result.stderr || result.stdout);
 
@@ -2162,13 +2162,13 @@ test('codex-agent launches codex inside a fresh sandbox worktree and keeps branc
   });
   assert.equal(result.status, 0, result.stderr || result.stdout);
 
-  const fakeBin = fs.mkdtempSync(path.join(os.tmpdir(), 'musafety-fake-codex-'));
+  const fakeBin = fs.mkdtempSync(path.join(os.tmpdir(), 'guardex-fake-codex-'));
   const fakeCodexPath = path.join(fakeBin, 'codex');
   fs.writeFileSync(
     fakeCodexPath,
     `#!/usr/bin/env bash\n` +
-      `pwd > "${'${MUSAFETY_TEST_CODEX_CWD}'}"\n` +
-      `echo "$@" > "${'${MUSAFETY_TEST_CODEX_ARGS}'}"\n`,
+      `pwd > "${'${GUARDEX_TEST_CODEX_CWD}'}"\n` +
+      `echo "$@" > "${'${GUARDEX_TEST_CODEX_ARGS}'}"\n`,
     'utf8',
   );
   fs.chmodSync(fakeCodexPath, 0o755);
@@ -2181,8 +2181,8 @@ test('codex-agent launches codex inside a fresh sandbox worktree and keeps branc
     repoDir,
     {
       PATH: `${fakeBin}:${process.env.PATH}`,
-      MUSAFETY_TEST_CODEX_CWD: cwdMarker,
-      MUSAFETY_TEST_CODEX_ARGS: argsMarker,
+      GUARDEX_TEST_CODEX_CWD: cwdMarker,
+      GUARDEX_TEST_CODEX_ARGS: argsMarker,
     },
   );
   assert.equal(launch.status, 0, launch.stderr || launch.stdout);
@@ -2255,13 +2255,13 @@ test('codex-agent restores local branch and falls back to safe worktree start wh
   );
   fs.chmodSync(path.join(repoDir, 'scripts', 'agent-branch-start.sh'), 0o755);
 
-  const fakeBin = fs.mkdtempSync(path.join(os.tmpdir(), 'musafety-fake-codex-fallback-'));
+  const fakeBin = fs.mkdtempSync(path.join(os.tmpdir(), 'guardex-fake-codex-fallback-'));
   const fakeCodexPath = path.join(fakeBin, 'codex');
   fs.writeFileSync(
     fakeCodexPath,
     `#!/usr/bin/env bash\n` +
-      `pwd > "${'${MUSAFETY_TEST_CODEX_CWD}'}"\n` +
-      `echo "$@" > "${'${MUSAFETY_TEST_CODEX_ARGS}'}"\n`,
+      `pwd > "${'${GUARDEX_TEST_CODEX_CWD}'}"\n` +
+      `echo "$@" > "${'${GUARDEX_TEST_CODEX_ARGS}'}"\n`,
     'utf8',
   );
   fs.chmodSync(fakeCodexPath, 0o755);
@@ -2274,8 +2274,8 @@ test('codex-agent restores local branch and falls back to safe worktree start wh
     repoDir,
     {
       PATH: `${fakeBin}:${process.env.PATH}`,
-      MUSAFETY_TEST_CODEX_CWD: cwdMarker,
-      MUSAFETY_TEST_CODEX_ARGS: argsMarker,
+      GUARDEX_TEST_CODEX_CWD: cwdMarker,
+      GUARDEX_TEST_CODEX_ARGS: argsMarker,
     },
   );
   assert.equal(launch.status, 0, launch.stderr || launch.stdout);
@@ -2323,13 +2323,13 @@ test('codex-agent supports --codex-bin override before positional arguments', ()
   });
   assert.equal(result.status, 0, result.stderr || result.stdout);
 
-  const fakeBin = fs.mkdtempSync(path.join(os.tmpdir(), 'musafety-fake-codex-bin-'));
+  const fakeBin = fs.mkdtempSync(path.join(os.tmpdir(), 'guardex-fake-codex-bin-'));
   const fakeCodexPath = path.join(fakeBin, 'my-codex');
   fs.writeFileSync(
     fakeCodexPath,
     `#!/usr/bin/env bash\n` +
-      `pwd > "${'${MUSAFETY_TEST_CODEX_CWD}'}"\n` +
-      `echo "$@" > "${'${MUSAFETY_TEST_CODEX_ARGS}'}"\n`,
+      `pwd > "${'${GUARDEX_TEST_CODEX_CWD}'}"\n` +
+      `echo "$@" > "${'${GUARDEX_TEST_CODEX_ARGS}'}"\n`,
     'utf8',
   );
   fs.chmodSync(fakeCodexPath, 0o755);
@@ -2350,8 +2350,8 @@ test('codex-agent supports --codex-bin override before positional arguments', ()
     ],
     repoDir,
     {
-      MUSAFETY_TEST_CODEX_CWD: cwdMarker,
-      MUSAFETY_TEST_CODEX_ARGS: argsMarker,
+      GUARDEX_TEST_CODEX_CWD: cwdMarker,
+      GUARDEX_TEST_CODEX_ARGS: argsMarker,
     },
   );
   assert.equal(launch.status, 0, launch.stderr || launch.stdout);
@@ -2375,13 +2375,13 @@ test('codex-agent keeps dirty sandbox worktrees after session exit', () => {
   const setupResult = runNode(['setup', '--target', repoDir, '--no-global-install'], repoDir);
   assert.equal(setupResult.status, 0, setupResult.stderr || setupResult.stdout);
 
-  const fakeBin = fs.mkdtempSync(path.join(os.tmpdir(), 'musafety-fake-codex-dirty-'));
+  const fakeBin = fs.mkdtempSync(path.join(os.tmpdir(), 'guardex-fake-codex-dirty-'));
   const fakeCodexPath = path.join(fakeBin, 'codex');
   fs.writeFileSync(
     fakeCodexPath,
     `#!/usr/bin/env bash\n` +
-      `pwd > "${'${MUSAFETY_TEST_CODEX_CWD}'}"\n` +
-      `echo "$@" > "${'${MUSAFETY_TEST_CODEX_ARGS}'}"\n` +
+      `pwd > "${'${GUARDEX_TEST_CODEX_CWD}'}"\n` +
+      `echo "$@" > "${'${GUARDEX_TEST_CODEX_ARGS}'}"\n` +
       `echo "dirty" > codex-dirty.txt\n`,
     'utf8',
   );
@@ -2395,8 +2395,8 @@ test('codex-agent keeps dirty sandbox worktrees after session exit', () => {
     repoDir,
     {
       PATH: `${fakeBin}:${process.env.PATH}`,
-      MUSAFETY_TEST_CODEX_CWD: cwdMarker,
-      MUSAFETY_TEST_CODEX_ARGS: argsMarker,
+      GUARDEX_TEST_CODEX_CWD: cwdMarker,
+      GUARDEX_TEST_CODEX_ARGS: argsMarker,
     },
   );
   assert.equal(launch.status, 0, launch.stderr || launch.stdout);
@@ -2427,13 +2427,13 @@ test('codex-agent waits for PR merge completion and cleans merged sandbox branch
   result = runCmd('git', ['push', 'origin', 'dev'], repoDir);
   assert.equal(result.status, 0, result.stderr || result.stdout);
 
-  const fakeCodexBin = fs.mkdtempSync(path.join(os.tmpdir(), 'musafety-fake-codex-autofinish-'));
+  const fakeCodexBin = fs.mkdtempSync(path.join(os.tmpdir(), 'guardex-fake-codex-autofinish-'));
   const fakeCodexPath = path.join(fakeCodexBin, 'codex');
   fs.writeFileSync(
     fakeCodexPath,
     `#!/usr/bin/env bash\n` +
-      `pwd > "${'${MUSAFETY_TEST_CODEX_CWD}'}"\n` +
-      `echo "$@" > "${'${MUSAFETY_TEST_CODEX_ARGS}'}"\n` +
+      `pwd > "${'${GUARDEX_TEST_CODEX_CWD}'}"\n` +
+      `echo "$@" > "${'${GUARDEX_TEST_CODEX_ARGS}'}"\n` +
       `echo "auto-finish-change" > codex-autofinish.txt\n`,
     'utf8',
   );
@@ -2455,11 +2455,11 @@ if [[ "$1" == "pr" && "$2" == "view" ]]; then
 fi
 if [[ "$1" == "pr" && "$2" == "merge" ]]; then
   attempts=0
-  if [[ -f "${'${MUSAFETY_TEST_GH_MERGE_STATE}'}" ]]; then
-    attempts="$(cat "${'${MUSAFETY_TEST_GH_MERGE_STATE}'}")"
+  if [[ -f "${'${GUARDEX_TEST_GH_MERGE_STATE}'}" ]]; then
+    attempts="$(cat "${'${GUARDEX_TEST_GH_MERGE_STATE}'}")"
   fi
   attempts=$((attempts + 1))
-  echo "$attempts" > "${'${MUSAFETY_TEST_GH_MERGE_STATE}'}"
+  echo "$attempts" > "${'${GUARDEX_TEST_GH_MERGE_STATE}'}"
   if [[ "$attempts" -lt 2 ]]; then
     echo "Required status check \\"test (node 22)\\" is expected." >&2
     exit 1
@@ -2478,12 +2478,12 @@ exit 1
     repoDir,
     {
       PATH: `${fakeCodexBin}:${process.env.PATH}`,
-      MUSAFETY_TEST_CODEX_CWD: cwdMarker,
-      MUSAFETY_TEST_CODEX_ARGS: argsMarker,
-      MUSAFETY_TEST_GH_MERGE_STATE: ghMergeState,
-      MUSAFETY_GH_BIN: fakeGhPath,
-      MUSAFETY_FINISH_WAIT_TIMEOUT_SECONDS: '60',
-      MUSAFETY_FINISH_WAIT_POLL_SECONDS: '0',
+      GUARDEX_TEST_CODEX_CWD: cwdMarker,
+      GUARDEX_TEST_CODEX_ARGS: argsMarker,
+      GUARDEX_TEST_GH_MERGE_STATE: ghMergeState,
+      GUARDEX_GH_BIN: fakeGhPath,
+      GUARDEX_FINISH_WAIT_TIMEOUT_SECONDS: '60',
+      GUARDEX_FINISH_WAIT_POLL_SECONDS: '0',
     },
   );
   assert.equal(launch.status, 0, launch.stderr || launch.stdout);
@@ -2525,18 +2525,18 @@ test('codex-agent still auto-finishes when base branch advances during task run'
   result = runCmd('git', ['config', 'multiagent.sync.maxBehindCommits', '0'], repoDir);
   assert.equal(result.status, 0, result.stderr || result.stdout);
 
-  const fakeCodexBin = fs.mkdtempSync(path.join(os.tmpdir(), 'musafety-fake-codex-retry-'));
+  const fakeCodexBin = fs.mkdtempSync(path.join(os.tmpdir(), 'guardex-fake-codex-retry-'));
   const fakeCodexPath = path.join(fakeCodexBin, 'codex');
   fs.writeFileSync(
     fakeCodexPath,
     `#!/usr/bin/env bash\n` +
       `set -e\n` +
-      `pwd > "${'${MUSAFETY_TEST_CODEX_CWD}'}"\n` +
-      `echo "$@" > "${'${MUSAFETY_TEST_CODEX_ARGS}'}"\n` +
+      `pwd > "${'${GUARDEX_TEST_CODEX_CWD}'}"\n` +
+      `echo "$@" > "${'${GUARDEX_TEST_CODEX_ARGS}'}"\n` +
       `echo "retry" > codex-autocommit-retry.txt\n` +
-      `clone_dir="${'${MUSAFETY_TEST_ORIGIN_ADVANCE_CLONE}'}"\n` +
+      `clone_dir="${'${GUARDEX_TEST_ORIGIN_ADVANCE_CLONE}'}"\n` +
       `rm -rf "$clone_dir"\n` +
-      `git clone "${'${MUSAFETY_TEST_ORIGIN_PATH}'}" "$clone_dir" >/dev/null 2>&1\n` +
+      `git clone "${'${GUARDEX_TEST_ORIGIN_PATH}'}" "$clone_dir" >/dev/null 2>&1\n` +
       `git -C "$clone_dir" config user.email "bot@example.com"\n` +
       `git -C "$clone_dir" config user.name "Bot"\n` +
       `git -C "$clone_dir" checkout dev >/dev/null 2>&1\n` +
@@ -2580,13 +2580,13 @@ exit 1
     repoDir,
     {
       PATH: `${fakeCodexBin}:${process.env.PATH}`,
-      MUSAFETY_TEST_CODEX_CWD: cwdMarker,
-      MUSAFETY_TEST_CODEX_ARGS: argsMarker,
-      MUSAFETY_TEST_ORIGIN_PATH: originPath,
-      MUSAFETY_TEST_ORIGIN_ADVANCE_CLONE: originAdvanceClone,
-      MUSAFETY_GH_BIN: fakeGhPath,
-      MUSAFETY_FINISH_WAIT_TIMEOUT_SECONDS: '60',
-      MUSAFETY_FINISH_WAIT_POLL_SECONDS: '0',
+      GUARDEX_TEST_CODEX_CWD: cwdMarker,
+      GUARDEX_TEST_CODEX_ARGS: argsMarker,
+      GUARDEX_TEST_ORIGIN_PATH: originPath,
+      GUARDEX_TEST_ORIGIN_ADVANCE_CLONE: originAdvanceClone,
+      GUARDEX_GH_BIN: fakeGhPath,
+      GUARDEX_FINISH_WAIT_TIMEOUT_SECONDS: '60',
+      GUARDEX_FINISH_WAIT_POLL_SECONDS: '0',
     },
   );
   assert.equal(launch.status, 0, launch.stderr || launch.stdout);
@@ -2629,7 +2629,7 @@ test('codex-agent surfaces commit-hook failures so unfinished sandboxes are acti
   result = runCmd('git', ['config', 'core.hooksPath', `${repoDir}/.githooks`], repoDir);
   assert.equal(result.status, 0, result.stderr || result.stdout);
 
-  const fakeCodexBin = fs.mkdtempSync(path.join(os.tmpdir(), 'musafety-fake-codex-hookfail-'));
+  const fakeCodexBin = fs.mkdtempSync(path.join(os.tmpdir(), 'guardex-fake-codex-hookfail-'));
   const fakeCodexPath = path.join(fakeCodexBin, 'codex');
   fs.writeFileSync(fakeCodexPath, '#!/usr/bin/env bash\nset -e\necho "hook-fail" > codex-hook-fail.txt\n', 'utf8');
   fs.chmodSync(fakeCodexPath, 0o755);
@@ -2640,9 +2640,9 @@ test('codex-agent surfaces commit-hook failures so unfinished sandboxes are acti
     repoDir,
     {
       PATH: `${fakeCodexBin}:${process.env.PATH}`,
-      MUSAFETY_CODEX_WAIT_FOR_MERGE: 'false',
-      MUSAFETY_FINISH_WAIT_TIMEOUT_SECONDS: '30',
-      MUSAFETY_FINISH_WAIT_POLL_SECONDS: '0',
+      GUARDEX_CODEX_WAIT_FOR_MERGE: 'false',
+      GUARDEX_FINISH_WAIT_TIMEOUT_SECONDS: '30',
+      GUARDEX_FINISH_WAIT_POLL_SECONDS: '0',
     },
   );
   assert.notEqual(launch.status, 0, launch.stderr || launch.stdout);
@@ -2882,7 +2882,7 @@ exit 1
     'bash',
     ['scripts/agent-branch-finish.sh', '--branch', 'agent/test-pr-delete-error', '--mode', 'pr', '--cleanup'],
     repoDir,
-    { MUSAFETY_GH_BIN: fakeGhPath },
+    { GUARDEX_GH_BIN: fakeGhPath },
   );
   assert.equal(finish.status, 0, finish.stderr || finish.stdout);
   assert.match(
@@ -2969,7 +2969,7 @@ exit 1
       '--cleanup',
     ],
     agentWorktreePath,
-    { MUSAFETY_GH_BIN: fakeGhPath },
+    { GUARDEX_GH_BIN: fakeGhPath },
   );
   assert.equal(finish.status, 0, finish.stderr || finish.stdout);
   assert.match(
@@ -3020,8 +3020,8 @@ if [[ "$1" == "pr" && "$2" == "view" ]]; then
   fi
   if [[ " $* " == *" --json state,mergedAt,url "* ]]; then
     attempts=0
-    if [[ -f "${'${MUSAFETY_TEST_GH_MERGE_STATE}'}" ]]; then
-      attempts="$(cat "${'${MUSAFETY_TEST_GH_MERGE_STATE}'}")"
+    if [[ -f "${'${GUARDEX_TEST_GH_MERGE_STATE}'}" ]]; then
+      attempts="$(cat "${'${GUARDEX_TEST_GH_MERGE_STATE}'}")"
     fi
     if [[ "$attempts" -ge 2 ]]; then
       echo -e "MERGED\\x1f2026-04-12T00:00:00Z\\x1fhttps://example.test/pr/2"
@@ -3035,11 +3035,11 @@ if [[ "$1" == "pr" && "$2" == "view" ]]; then
 fi
 if [[ "$1" == "pr" && "$2" == "merge" ]]; then
   attempts=0
-  if [[ -f "${'${MUSAFETY_TEST_GH_MERGE_STATE}'}" ]]; then
-    attempts="$(cat "${'${MUSAFETY_TEST_GH_MERGE_STATE}'}")"
+  if [[ -f "${'${GUARDEX_TEST_GH_MERGE_STATE}'}" ]]; then
+    attempts="$(cat "${'${GUARDEX_TEST_GH_MERGE_STATE}'}")"
   fi
   attempts=$((attempts + 1))
-  echo "$attempts" > "${'${MUSAFETY_TEST_GH_MERGE_STATE}'}"
+  echo "$attempts" > "${'${GUARDEX_TEST_GH_MERGE_STATE}'}"
   if [[ "$attempts" -lt 2 ]]; then
     echo "Required status check \\"test (node 22)\\" is expected." >&2
     exit 1
@@ -3067,8 +3067,8 @@ exit 1
     ],
     repoDir,
     {
-      MUSAFETY_GH_BIN: fakeGhPath,
-      MUSAFETY_TEST_GH_MERGE_STATE: ghMergeState,
+      GUARDEX_GH_BIN: fakeGhPath,
+      GUARDEX_TEST_GH_MERGE_STATE: ghMergeState,
     },
   );
   assert.equal(finish.status, 0, finish.stderr || finish.stdout);
@@ -3297,7 +3297,7 @@ exit 1
   const result = runNodeWithEnv(
     ['report', 'scorecard', '--target', repoDir, '--repo', 'github.com/recodeecom/multiagent-safety', '--date', '2026-04-10'],
     repoDir,
-    { MUSAFETY_SCORECARD_BIN: fakeScorecard },
+    { GUARDEX_SCORECARD_BIN: fakeScorecard },
   );
 
   assert.equal(result.status, 0, result.stderr || result.stdout);
@@ -3388,7 +3388,7 @@ exit 1
 `);
 
   const result = runNodeWithEnv(['setup', '--target', repoDir, '--yes-global-install'], repoDir, {
-    MUSAFETY_NPM_BIN: fakeNpm,
+    GUARDEX_NPM_BIN: fakeNpm,
   });
 
   assert.equal(result.status, 0, result.stderr || result.stdout);
@@ -3416,7 +3416,7 @@ exit 1
 `);
 
   const result = runNodeWithEnv(['setup', '--target', repoDir, '--yes-global-install'], repoDir, {
-    MUSAFETY_NPM_BIN: fakeNpm,
+    GUARDEX_NPM_BIN: fakeNpm,
   });
 
   assert.equal(result.status, 0, result.stderr || result.stdout);
@@ -3428,7 +3428,7 @@ exit 1
 test('status reports gh dependency as inactive when gh is unavailable', () => {
   const repoDir = initRepo();
   const result = runNodeWithEnv(['status', '--target', repoDir, '--json'], repoDir, {
-    MUSAFETY_GH_BIN: 'gh-command-not-found-for-test',
+    GUARDEX_GH_BIN: 'gh-command-not-found-for-test',
   });
 
   assert.equal(result.status, 0, result.stderr || result.stdout);
@@ -3452,8 +3452,8 @@ exit 1
 `);
 
   const result = runNodeWithEnv(['setup', '--target', repoDir, '--yes-global-install'], repoDir, {
-    MUSAFETY_NPM_BIN: fakeNpm,
-    MUSAFETY_GH_BIN: 'gh-command-not-found-for-test',
+    GUARDEX_NPM_BIN: fakeNpm,
+    GUARDEX_GH_BIN: 'gh-command-not-found-for-test',
   });
 
   assert.equal(result.status, 0, result.stderr || result.stdout);
@@ -3591,7 +3591,7 @@ test('worktree prune --idle-minutes preserves recent branch activity and prunes 
     ['scripts/agent-worktree-prune.sh', '--only-dirty-worktrees', '--idle-minutes', '10'],
     repoDir,
     {
-      MUSAFETY_PRUNE_NOW_EPOCH: String(fakeNowEpoch),
+      GUARDEX_PRUNE_NOW_EPOCH: String(fakeNowEpoch),
     },
   );
   assert.equal(result.status, 0, result.stderr || result.stdout);
@@ -3692,7 +3692,7 @@ test('cleanup command can remove squash-merged agent branches via merged PR dete
       '--include-pr-merged',
     ],
     repoDir,
-    { MUSAFETY_GH_BIN: fakeGhPath },
+    { GUARDEX_GH_BIN: fakeGhPath },
   );
   assert.equal(result.status, 0, result.stderr || result.stdout);
 
@@ -3735,7 +3735,7 @@ test('release fails when branch is not main', () => {
   const repoDir = initRepo();
   seedCommit(repoDir);
   const result = runNodeWithEnv(['release'], repoDir, {
-    MUSAFETY_RELEASE_REPO: repoDir,
+    GUARDEX_RELEASE_REPO: repoDir,
   });
   assert.equal(result.status, 1);
   assert.match(result.stderr, /required: 'main'/);
@@ -3746,7 +3746,7 @@ test('release fails when git status is dirty', () => {
   seedCommit(repoDir);
   fs.writeFileSync(path.join(repoDir, 'dirty.txt'), 'dirty\n');
   const result = runNodeWithEnv(['release'], repoDir, {
-    MUSAFETY_RELEASE_REPO: repoDir,
+    GUARDEX_RELEASE_REPO: repoDir,
   });
   assert.equal(result.status, 1);
   assert.match(result.stderr, /working tree is not clean/);
@@ -3756,7 +3756,7 @@ test('release runs npm publish when guardrails pass', () => {
   const repoDir = initRepoOnBranch('main');
   seedCommit(repoDir);
 
-  const fakeBin = fs.mkdtempSync(path.join(os.tmpdir(), 'musafety-fake-bin-'));
+  const fakeBin = fs.mkdtempSync(path.join(os.tmpdir(), 'guardex-fake-bin-'));
   const markerPath = path.join(repoDir, '.npm-publish-called');
   const fakeNpmPath = path.join(fakeBin, 'npm');
   fs.writeFileSync(
@@ -3769,7 +3769,7 @@ test('release runs npm publish when guardrails pass', () => {
   fs.chmodSync(fakeNpmPath, 0o755);
 
   const result = runNodeWithEnv(['release'], repoDir, {
-    MUSAFETY_RELEASE_REPO: repoDir,
+    GUARDEX_RELEASE_REPO: repoDir,
     PATH: `${fakeBin}:${process.env.PATH}`,
   });
   assert.equal(result.status, 0, result.stderr || result.stdout);
@@ -3781,7 +3781,7 @@ test('release runs npm publish when guardrails pass', () => {
 test('typo helper maps relaese/realaese to release', () => {
   const repoDir = initRepoOnBranch('main');
   seedCommit(repoDir);
-  const marker = path.join(os.tmpdir(), `musafety-typo-publish-${Date.now()}-${Math.random()}.txt`);
+  const marker = path.join(os.tmpdir(), `guardex-typo-publish-${Date.now()}-${Math.random()}.txt`);
   const fakeNpm = createFakeNpmScript(`
 if [[ "$1" == "publish" ]]; then
   echo "$@" > "${marker}"
@@ -3792,16 +3792,16 @@ exit 1
 `);
 
   const typoA = runNodeWithEnv(['relaese'], repoDir, {
-    MUSAFETY_RELEASE_REPO: repoDir,
-    MUSAFETY_NPM_BIN: fakeNpm,
+    GUARDEX_RELEASE_REPO: repoDir,
+    GUARDEX_NPM_BIN: fakeNpm,
   });
   assert.equal(typoA.status, 0, typoA.stderr || typoA.stdout);
   assert.match(typoA.stdout, /Interpreting 'relaese' as 'release'/);
   assert.equal(fs.readFileSync(marker, 'utf8').trim(), 'publish');
 
   const typoB = runNodeWithEnv(['realaese'], repoDir, {
-    MUSAFETY_RELEASE_REPO: repoDir,
-    MUSAFETY_NPM_BIN: fakeNpm,
+    GUARDEX_RELEASE_REPO: repoDir,
+    GUARDEX_NPM_BIN: fakeNpm,
   });
   assert.equal(typoB.status, 0, typoB.stderr || typoB.stdout);
   assert.match(typoB.stdout, /Interpreting 'realaese' as 'release'/);
