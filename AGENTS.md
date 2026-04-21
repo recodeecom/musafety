@@ -87,12 +87,12 @@ bash scripts/agent-branch-start.sh "refactor-payment-pipeline" "claude-name"
    bash scripts/agent-branch-start.sh [--tier T0|T1|T2|T3] "<task>" "claude-<name>"
    ```
 
-   Creates `agent/claude-<name>/<slug>` under `.omx/agent-worktrees/`, scaffolds the OpenSpec change + plan workspaces (sized by tier), and records the bootstrap manifest. Missing `codex-auth` silently falls back to an empty snapshot slug (expected for Claude sessions).
+   Creates `agent/claude-<name>/<slug>` under `.omc/agent-worktrees/`, scaffolds the OpenSpec change + plan workspaces (sized by tier), and records the bootstrap manifest. Codex sessions keep using `.omx/agent-worktrees/`. Missing `codex-auth` silently falls back to an empty snapshot slug (expected for Claude sessions).
 
 2. Work inside the sandbox only:
 
    ```bash
-   cd .omx/agent-worktrees/agent__claude-<name>__<slug>
+   cd .omc/agent-worktrees/agent__claude-<name>__<slug>
    python3 scripts/agent-file-locks.py claim --branch "agent/claude-<name>/<slug>" <file...>
    # implement + commit inside this worktree
    ```

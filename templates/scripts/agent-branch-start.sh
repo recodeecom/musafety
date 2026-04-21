@@ -5,7 +5,8 @@ TASK_NAME="task"
 AGENT_NAME="agent"
 BASE_BRANCH=""
 BASE_BRANCH_EXPLICIT=0
-WORKTREE_ROOT_REL=".omx/agent-worktrees"
+WORKTREE_ROOT_REL=""
+WORKTREE_ROOT_EXPLICIT=0
 OPENSPEC_AUTO_INIT_RAW="${GUARDEX_OPENSPEC_AUTO_INIT:-false}"
 OPENSPEC_PLAN_SLUG_OVERRIDE="${GUARDEX_OPENSPEC_PLAN_SLUG:-}"
 OPENSPEC_CHANGE_SLUG_OVERRIDE="${GUARDEX_OPENSPEC_CHANGE_SLUG:-}"
@@ -44,6 +45,7 @@ while [[ $# -gt 0 ]]; do
       ;;
     --worktree-root)
       WORKTREE_ROOT_REL="${2:-.omx/agent-worktrees}"
+      WORKTREE_ROOT_EXPLICIT=1
       shift 2
       ;;
     --)
@@ -121,6 +123,36 @@ shorten_slug() {
     shortened="${slug:0:max_len}"
   fi
   printf '%s' "$shortened"
+}
+
+env_flag_truthy() {
+  local raw="${1:-}"
+  local lowered
+  lowered="$(printf '%s' "$raw" | tr '[:upper:]' '[:lower:]')"
+  case "$lowered" in
+    1|true|yes|on) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+default_worktree_root_rel() {
+  local raw_agent="$1"
+  local override="${GUARDEX_AGENT_TYPE:-}"
+  local lowered_agent lowered_override
+  lowered_agent="$(printf '%s' "$raw_agent" | tr '[:upper:]' '[:lower:]')"
+  lowered_override="$(printf '%s' "$override" | tr '[:upper:]' '[:lower:]')"
+
+  if [[ -n "${CLAUDE_CODE_SESSION_ID:-}" ]] || env_flag_truthy "${CLAUDECODE:-}"; then
+    printf '.omc/agent-worktrees'
+    return 0
+  fi
+
+  if [[ "$lowered_agent" == *claude* ]] || [[ "$lowered_override" == *claude* ]]; then
+    printf '.omc/agent-worktrees'
+    return 0
+  fi
+
+  printf '.omx/agent-worktrees'
 }
 
 # Collapse arbitrary agent identifiers to a clean role token. Priority:
@@ -415,6 +447,9 @@ fi
 
 task_slug="$(sanitize_slug "$TASK_NAME" "task")"
 agent_slug="$(normalize_role "$AGENT_NAME")"
+if [[ "$WORKTREE_ROOT_EXPLICIT" -eq 0 ]]; then
+  WORKTREE_ROOT_REL="$(default_worktree_root_rel "$AGENT_NAME")"
+fi
 branch_timestamp="$(compose_branch_timestamp)"
 branch_descriptor="$(compose_branch_descriptor "$task_slug" "$branch_timestamp")"
 branch_name_base="agent/${agent_slug}/${branch_descriptor}"
@@ -499,6 +534,7 @@ if ! worktree_add_output="$(git -C "$repo_root" worktree add -b "$branch_name" "
   exit 1
 fi
 git -C "$repo_root" config "branch.${branch_name}.guardexBase" "$BASE_BRANCH" >/dev/null 2>&1 || true
+git -C "$repo_root" config "branch.${branch_name}.guardexWorktreeRoot" "$WORKTREE_ROOT_REL" >/dev/null 2>&1 || true
 # Fresh agent branches should start unpublished; clear any inherited base-branch tracking.
 git -C "$worktree_path" branch --unset-upstream "$branch_name" >/dev/null 2>&1 || true
 

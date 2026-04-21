@@ -18,6 +18,10 @@ GH_BIN="${GUARDEX_GH_BIN:-gh}"
 PR_MERGED_LOOKUP_DISABLED=0
 PR_MERGED_LOOKUP_LOADED=0
 declare -A MERGED_PR_BRANCHES=()
+WORKTREE_ROOT_RELS=(
+  ".omx/agent-worktrees"
+  ".omc/agent-worktrees"
+)
 
 if [[ -n "$BASE_BRANCH" ]]; then
   BASE_BRANCH_EXPLICIT=1
@@ -77,12 +81,35 @@ fi
 
 repo_root="$(git rev-parse --show-toplevel)"
 current_pwd="$(pwd -P)"
-worktree_root="${repo_root}/.omx/agent-worktrees"
 repo_common_dir="$(
   git -C "$repo_root" rev-parse --git-common-dir \
     | awk -v root="$repo_root" '{ if ($0 ~ /^\//) { print $0 } else { print root "/" $0 } }'
 )"
 repo_common_dir="$(cd "$repo_common_dir" && pwd -P)"
+
+resolve_worktree_root_rel_for_entry() {
+  local entry="$1"
+  case "$entry" in
+    */.omc/agent-worktrees/*)
+      printf '%s' '.omc/agent-worktrees'
+      ;;
+    *)
+      printf '%s' '.omx/agent-worktrees'
+      ;;
+  esac
+}
+
+is_managed_worktree_path() {
+  local entry="$1"
+  local rel root
+  for rel in "${WORKTREE_ROOT_RELS[@]}"; do
+    root="${repo_root}/${rel}"
+    if [[ "$entry" == "${root}"/* ]]; then
+      return 0
+    fi
+  done
+  return 1
+}
 
 resolve_base_branch() {
   local configured=""
@@ -308,54 +335,59 @@ relocated_foreign=0
 skipped_foreign=0
 
 relocate_foreign_worktree_entries() {
-  [[ -d "$worktree_root" ]] || return 0
+  local rel="" worktree_root="" entry=""
+  for rel in "${WORKTREE_ROOT_RELS[@]}"; do
+    worktree_root="${repo_root}/${rel}"
+    [[ -d "$worktree_root" ]] || continue
 
-  local entry=""
-  for entry in "${worktree_root}"/*; do
-    [[ -d "$entry" ]] || continue
-    if ! git -C "$entry" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
-      continue
-    fi
+    for entry in "${worktree_root}"/*; do
+      [[ -d "$entry" ]] || continue
+      if ! git -C "$entry" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+        continue
+      fi
 
-    local entry_common_dir=""
-    entry_common_dir="$(resolve_worktree_common_dir "$entry" || true)"
-    [[ -n "$entry_common_dir" ]] || continue
+      local entry_common_dir=""
+      entry_common_dir="$(resolve_worktree_common_dir "$entry" || true)"
+      [[ -n "$entry_common_dir" ]] || continue
 
-    if [[ "$entry_common_dir" == "$repo_common_dir" ]]; then
-      continue
-    fi
+      if [[ "$entry_common_dir" == "$repo_common_dir" ]]; then
+        continue
+      fi
 
-    if [[ "$(basename "$entry_common_dir")" != ".git" ]]; then
-      skipped_foreign=$((skipped_foreign + 1))
-      echo "[agent-worktree-prune] Skipping foreign worktree with unsupported git common dir: ${entry}"
-      continue
-    fi
+      if [[ "$(basename "$entry_common_dir")" != ".git" ]]; then
+        skipped_foreign=$((skipped_foreign + 1))
+        echo "[agent-worktree-prune] Skipping foreign worktree with unsupported git common dir: ${entry}"
+        continue
+      fi
 
-    local owner_repo_root
-    owner_repo_root="$(dirname "$entry_common_dir")"
-    local owner_worktree_root="${owner_repo_root}/.omx/agent-worktrees"
-    local target_path
-    target_path="$(select_unique_worktree_path "$owner_worktree_root" "$(basename "$entry")")"
+      local owner_repo_root
+      owner_repo_root="$(dirname "$entry_common_dir")"
+      local owner_worktree_root_rel owner_worktree_root
+      owner_worktree_root_rel="$(resolve_worktree_root_rel_for_entry "$entry")"
+      owner_worktree_root="${owner_repo_root}/${owner_worktree_root_rel}"
+      local target_path
+      target_path="$(select_unique_worktree_path "$owner_worktree_root" "$(basename "$entry")")"
 
-    if [[ "$entry" == "$current_pwd" || "$current_pwd" == "${entry}"/* ]]; then
-      skipped_foreign=$((skipped_foreign + 1))
-      echo "[agent-worktree-prune] Skipping active foreign worktree: ${entry}"
-      continue
-    fi
+      if [[ "$entry" == "$current_pwd" || "$current_pwd" == "${entry}"/* ]]; then
+        skipped_foreign=$((skipped_foreign + 1))
+        echo "[agent-worktree-prune] Skipping active foreign worktree: ${entry}"
+        continue
+      fi
 
-    echo "[agent-worktree-prune] Relocating foreign worktree to owning repo: ${entry} -> ${target_path}"
-    if [[ "$DRY_RUN" -eq 1 ]]; then
-      relocated_foreign=$((relocated_foreign + 1))
-      continue
-    fi
+      echo "[agent-worktree-prune] Relocating foreign worktree to owning repo: ${entry} -> ${target_path}"
+      if [[ "$DRY_RUN" -eq 1 ]]; then
+        relocated_foreign=$((relocated_foreign + 1))
+        continue
+      fi
 
-    mkdir -p "$owner_worktree_root"
-    if git -C "$owner_repo_root" worktree move "$entry" "$target_path" >/dev/null 2>&1; then
-      relocated_foreign=$((relocated_foreign + 1))
-    else
-      skipped_foreign=$((skipped_foreign + 1))
-      echo "[agent-worktree-prune] Failed to relocate foreign worktree: ${entry}" >&2
-    fi
+      mkdir -p "$owner_worktree_root"
+      if git -C "$owner_repo_root" worktree move "$entry" "$target_path" >/dev/null 2>&1; then
+        relocated_foreign=$((relocated_foreign + 1))
+      else
+        skipped_foreign=$((skipped_foreign + 1))
+        echo "[agent-worktree-prune] Failed to relocate foreign worktree: ${entry}" >&2
+      fi
+    done
   done
 }
 
@@ -371,7 +403,9 @@ process_entry() {
   local branch_ref="$2"
 
   [[ -z "$wt" ]] && return
-  [[ "$wt" != "${worktree_root}"/* ]] && return
+  if ! is_managed_worktree_path "$wt"; then
+    return
+  fi
 
   local branch=""
   if [[ -n "$branch_ref" ]]; then

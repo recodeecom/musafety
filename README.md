@@ -116,6 +116,8 @@ Running Codex across several existing worktrees (e.g. from VS Code Source Contro
 gx finish --all
 ```
 
+Codex sessions default to `.omx/agent-worktrees/`. Claude Code sessions default to `.omc/agent-worktrees/`, so Claude sandboxes stay under the Claude runtime folder instead of sharing the Codex root.
+
 ---
 
 ## Visual reference
@@ -161,7 +163,7 @@ gx setup --target /path/to/repo --parent-workspace-view
 
 ### Monorepo support
 
-Setup auto-installs into every nested git repo (e.g. `apps/*/.git`). Submodules and worktrees under `.omx/agent-worktrees/` are skipped.
+Setup auto-installs into every nested git repo (e.g. `apps/*/.git`). Submodules and worktrees under `.omx/agent-worktrees/` or `.omc/agent-worktrees/` are skipped.
 
 ```sh
 gx setup --target /mainfolder
@@ -460,6 +462,7 @@ scripts/openspec/init-plan-workspace.sh
 .claude/commands/gitguardex.md
 .github/pull.yml.example
 .github/workflows/cr.yml
+.omc/agent-worktrees
 .omx/state/agent-file-locks.json
 ```
 
