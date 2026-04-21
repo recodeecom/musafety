@@ -144,11 +144,16 @@ else
   common_git_dir="$(cd "$repo_root/$common_git_dir_raw" && pwd -P)"
 fi
 repo_common_root="$(cd "$common_git_dir/.." && pwd -P)"
-agent_worktree_root="${repo_common_root}/.omx/agent-worktrees"
 
 if [[ -z "$SOURCE_BRANCH" ]]; then
   SOURCE_BRANCH="$(git rev-parse --abbrev-ref HEAD)"
 fi
+
+stored_worktree_root_rel="$(git -C "$repo_root" config --get "branch.${SOURCE_BRANCH}.guardexWorktreeRoot" || true)"
+if [[ -z "$stored_worktree_root_rel" ]]; then
+  stored_worktree_root_rel=".omx/agent-worktrees"
+fi
+agent_worktree_root="${repo_common_root}/${stored_worktree_root_rel}"
 
 if [[ "$BASE_BRANCH_EXPLICIT" -eq 1 && -z "$BASE_BRANCH" ]]; then
   echo "[agent-branch-finish] --base requires a non-empty branch name." >&2

@@ -18,6 +18,10 @@ GH_BIN="${GUARDEX_GH_BIN:-gh}"
 PR_MERGED_LOOKUP_DISABLED=0
 PR_MERGED_LOOKUP_LOADED=0
 declare -A MERGED_PR_BRANCHES=()
+WORKTREE_ROOT_RELS=(
+  ".omx/agent-worktrees"
+  ".omc/agent-worktrees"
+)
 
 if [[ -n "$BASE_BRANCH" ]]; then
   BASE_BRANCH_EXPLICIT=1
@@ -77,12 +81,35 @@ fi
 
 repo_root="$(git rev-parse --show-toplevel)"
 current_pwd="$(pwd -P)"
-worktree_root="${repo_root}/.omx/agent-worktrees"
 repo_common_dir="$(
   git -C "$repo_root" rev-parse --git-common-dir \
     | awk -v root="$repo_root" '{ if ($0 ~ /^\//) { print $0 } else { print root "/" $0 } }'
 )"
 repo_common_dir="$(cd "$repo_common_dir" && pwd -P)"
+
+resolve_worktree_root_rel_for_entry() {
+  local entry="$1"
+  case "$entry" in
+    */.omc/agent-worktrees/*)
+      printf '%s' '.omc/agent-worktrees'
+      ;;
+    *)
+      printf '%s' '.omx/agent-worktrees'
+      ;;
+  esac
+}
+
+is_managed_worktree_path() {
+  local entry="$1"
+  local rel root
+  for rel in "${WORKTREE_ROOT_RELS[@]}"; do
+    root="${repo_root}/${rel}"
+    if [[ "$entry" == "${root}"/* ]]; then
+      return 0
+    fi
+  done
+  return 1
+}
 
 resolve_base_branch() {
   local configured=""
@@ -333,7 +360,9 @@ relocate_foreign_worktree_entries() {
 
     local owner_repo_root
     owner_repo_root="$(dirname "$entry_common_dir")"
-    local owner_worktree_root="${owner_repo_root}/.omx/agent-worktrees"
+    local owner_worktree_root_rel owner_worktree_root
+    owner_worktree_root_rel="$(resolve_worktree_root_rel_for_entry "$entry")"
+    owner_worktree_root="${owner_repo_root}/${owner_worktree_root_rel}"
     local target_path
     target_path="$(select_unique_worktree_path "$owner_worktree_root" "$(basename "$entry")")"
 
@@ -371,7 +400,9 @@ process_entry() {
   local branch_ref="$2"
 
   [[ -z "$wt" ]] && return
-  [[ "$wt" != "${worktree_root}"/* ]] && return
+  if ! is_managed_worktree_path "$wt"; then
+    return
+  fi
 
   local branch=""
   if [[ -n "$branch_ref" ]]; then

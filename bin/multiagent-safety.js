@@ -183,6 +183,12 @@ const AGENTS_MARKER_START = '<!-- multiagent-safety:START -->';
 const AGENTS_MARKER_END = '<!-- multiagent-safety:END -->';
 const GITIGNORE_MARKER_START = '# multiagent-safety:START';
 const GITIGNORE_MARKER_END = '# multiagent-safety:END';
+const CODEX_WORKTREE_RELATIVE_DIR = path.join('.omx', 'agent-worktrees');
+const CLAUDE_WORKTREE_RELATIVE_DIR = path.join('.omc', 'agent-worktrees');
+const AGENT_WORKTREE_RELATIVE_DIRS = [
+  CODEX_WORKTREE_RELATIVE_DIR,
+  CLAUDE_WORKTREE_RELATIVE_DIR,
+];
 const MANAGED_GITIGNORE_PATHS = [
   '.omx/',
   '.omc/',
@@ -202,7 +208,9 @@ const OMX_SCAFFOLD_DIRECTORIES = [
   '.omx/state',
   '.omx/logs',
   '.omx/plans',
-  '.omx/agent-worktrees',
+  CODEX_WORKTREE_RELATIVE_DIR,
+  '.omc',
+  CLAUDE_WORKTREE_RELATIVE_DIR,
 ];
 const OMX_SCAFFOLD_FILES = new Map([
   ['.omx/notepad.md', '\n\n## WORKING MEMORY\n'],
@@ -272,6 +280,19 @@ const DEPRECATED_COMMAND_ALIASES = new Map([
 const AGENT_BOT_DESCRIPTIONS = [
   ['agents', 'Start/stop review + cleanup bots for this repo'],
 ];
+
+function envFlagIsTruthy(raw) {
+  const lowered = String(raw || '').trim().toLowerCase();
+  return lowered === '1' || lowered === 'true' || lowered === 'yes' || lowered === 'on';
+}
+
+function isClaudeCodeSession(env = process.env) {
+  return envFlagIsTruthy(env.CLAUDECODE) || Boolean(env.CLAUDE_CODE_SESSION_ID);
+}
+
+function defaultAgentWorktreeRelativeDir(env = process.env) {
+  return isClaudeCodeSession(env) ? CLAUDE_WORKTREE_RELATIVE_DIR : CODEX_WORKTREE_RELATIVE_DIR;
+}
 
 const AI_SETUP_PROMPT = `GitGuardex (gx) setup checklist for Codex/Claude in this repo.
 
@@ -522,8 +543,6 @@ const NESTED_REPO_DEFAULT_SKIP_DIRS = new Set([
   '.venv',
   '.pnpm-store',
 ]);
-const NESTED_REPO_WORKTREE_RELATIVE_DIR = path.join('.omx', 'agent-worktrees');
-
 function discoverNestedGitRepos(rootPath, opts = {}) {
   const maxDepth = Number.isFinite(opts.maxDepth) ? Math.max(1, opts.maxDepth) : NESTED_REPO_DEFAULT_MAX_DEPTH;
   const extraSkip = new Set(Array.isArray(opts.extraSkip) ? opts.extraSkip : []);
@@ -538,7 +557,7 @@ function discoverNestedGitRepos(rootPath, opts = {}) {
     return path.resolve(resolvedRoot, raw);
   })();
 
-  const workreeSkipAbsolute = path.join(resolvedRoot, NESTED_REPO_WORKTREE_RELATIVE_DIR);
+  const worktreeSkipAbsolutes = AGENT_WORKTREE_RELATIVE_DIRS.map((relativeDir) => path.join(resolvedRoot, relativeDir));
   const found = new Set();
   found.add(resolvedRoot);
 
@@ -570,7 +589,7 @@ function discoverNestedGitRepos(rootPath, opts = {}) {
 
       if (!entry.isDirectory() || entry.isSymbolicLink()) continue;
       if (shouldSkipDir(entry.name)) continue;
-      if (entryPath === workreeSkipAbsolute) continue;
+      if (worktreeSkipAbsolutes.includes(entryPath)) continue;
       walk(entryPath, depth + 1);
     }
   }
@@ -1124,16 +1143,15 @@ function buildParentWorkspaceView(repoRoot) {
   const workspaceFileName = `${path.basename(repoRoot)}-branches.code-workspace`;
   const workspacePath = path.join(parentDir, workspaceFileName);
   const repoRelativePath = normalizeWorkspacePath(path.relative(parentDir, repoRoot) || '.');
-  const worktreesRelativePath = normalizeWorkspacePath(
-    path.join(repoRelativePath === '.' ? '' : repoRelativePath, '.omx', 'agent-worktrees'),
-  );
 
   return {
     workspacePath,
     payload: {
       folders: [
         { path: repoRelativePath },
-        { path: worktreesRelativePath },
+        ...AGENT_WORKTREE_RELATIVE_DIRS.map((relativeDir) => ({
+          path: normalizeWorkspacePath(path.join(repoRelativePath === '.' ? '' : repoRelativePath, relativeDir)),
+        })),
       ],
       settings: {
         'scm.alwaysShowRepositories': true,
@@ -1341,7 +1359,7 @@ function protectedBaseSandboxBranchPrefix() {
 }
 
 function protectedBaseSandboxWorktreePath(repoRoot, branchName) {
-  return path.join(repoRoot, '.omx', 'agent-worktrees', branchName.replace(/\//g, '__'));
+  return path.join(repoRoot, defaultAgentWorktreeRelativeDir(), branchName.replace(/\//g, '__'));
 }
 
 function gitRefExists(repoRoot, ref) {
@@ -1876,9 +1894,8 @@ function mergeDoctorSandboxRepairsBackToProtectedBase(options, blocked, metadata
       if (allowedPaths.has(filePath)) {
         return false;
       }
-      return !(
-        filePath === NESTED_REPO_WORKTREE_RELATIVE_DIR
-        || filePath.startsWith(`${NESTED_REPO_WORKTREE_RELATIVE_DIR}/`)
+      return !AGENT_WORKTREE_RELATIVE_DIRS.some(
+        (relativeDir) => filePath === relativeDir || filePath.startsWith(`${relativeDir}/`),
       );
     });
     if (unexpectedPaths.length > 0) {

@@ -371,6 +371,8 @@ test('setup provisions workflow files and repo config', () => {
     '.omx/logs',
     '.omx/plans',
     '.omx/agent-worktrees',
+    '.omc',
+    '.omc/agent-worktrees',
     '.omx/notepad.md',
     '.omx/project-memory.json',
     'scripts/agent-branch-start.sh',
@@ -713,6 +715,7 @@ test('setup --parent-workspace-view creates one-level-up VS Code workspace for r
   assert.deepEqual(workspace.folders, [
     { path: path.basename(repoDir) },
     { path: `${path.basename(repoDir)}/.omx/agent-worktrees` },
+    { path: `${path.basename(repoDir)}/.omc/agent-worktrees` },
   ]);
   assert.equal(workspace.settings['scm.alwaysShowRepositories'], true);
 });
@@ -1129,6 +1132,8 @@ test('doctor on protected main bootstraps sandbox branch even before setup exist
   assert.equal(fs.existsSync(path.join(repoDir, '.omx', 'logs')), true);
   assert.equal(fs.existsSync(path.join(repoDir, '.omx', 'plans')), true);
   assert.equal(fs.existsSync(path.join(repoDir, '.omx', 'agent-worktrees')), true);
+  assert.equal(fs.existsSync(path.join(repoDir, '.omc')), true);
+  assert.equal(fs.existsSync(path.join(repoDir, '.omc', 'agent-worktrees')), true);
   assert.equal(fs.existsSync(path.join(repoDir, '.omx', 'notepad.md')), true);
   assert.equal(fs.existsSync(path.join(repoDir, '.omx', 'project-memory.json')), true);
 
@@ -1543,6 +1548,49 @@ test('setup agent-branch-start keeps role-datetime branch labels compact (v7.0.3
   assert.doesNotMatch(branchLeaf, /zeus|portasmosonma|admin-recodee/);
 });
 
+test('setup agent-branch-start routes Claude sessions into .omc worktrees and stores the selected root', () => {
+  const repoDir = initRepo();
+
+  let result = runNode(['setup', '--target', repoDir], repoDir);
+  assert.equal(result.status, 0, result.stderr || result.stdout);
+  seedCommit(repoDir);
+
+  result = runCmd(
+    'bash',
+    ['scripts/agent-branch-start.sh', 'claude-session-task', 'bot', 'dev'],
+    repoDir,
+    {
+      env: {
+        CLAUDECODE: '1',
+        GUARDEX_AGENT_TYPE: 'planner',
+      },
+    },
+  );
+  assert.equal(result.status, 0, result.stderr || result.stdout);
+
+  const createdBranch = extractCreatedBranch(result.stdout);
+  assert.match(
+    createdBranch,
+    /^agent\/planner\/claude-session-task-\d{4}-\d{2}-\d{2}-\d{2}-\d{2}$/,
+  );
+
+  const createdWorktree = extractCreatedWorktree(result.stdout);
+  assert.match(
+    createdWorktree,
+    new RegExp(
+      `${escapeRegexLiteral(repoDir)}/\\.omc/agent-worktrees/${escapeRegexLiteral(createdBranch.replaceAll('/', '__'))}$`,
+    ),
+  );
+
+  const storedWorktreeRoot = runCmd(
+    'git',
+    ['config', '--get', `branch.${createdBranch}.guardexWorktreeRoot`],
+    repoDir,
+  );
+  assert.equal(storedWorktreeRoot.status, 0, storedWorktreeRoot.stderr || storedWorktreeRoot.stdout);
+  assert.equal(storedWorktreeRoot.stdout.trim(), '.omc/agent-worktrees');
+});
+
 test('setup agent-branch-start supports optional OpenSpec auto-bootstrap toggles', () => {
   const repoDir = initRepo();
 
@@ -1821,7 +1869,7 @@ test('agent-branch-start links dependency node_modules directories into new work
   }
 });
 
-test('agent-branch-finish infers base from source branch metadata and updates main worktree', () => {
+test('agent-branch-finish handles Claude-root worktrees when inferring base from source branch metadata', () => {
   const repoDir = initRepoOnBranch('main');
   seedCommit(repoDir);
   attachOriginRemoteForBranch(repoDir, 'main');
@@ -1837,10 +1885,13 @@ test('agent-branch-finish infers base from source branch metadata and updates ma
   result = runCmd('git', ['push', 'origin', 'main'], repoDir);
   assert.equal(result.status, 0, result.stderr || result.stdout);
 
-  result = runCmd('bash', ['scripts/agent-branch-start.sh', 'finish-from-dev', 'bot'], repoDir);
+  result = runCmd('bash', ['scripts/agent-branch-start.sh', 'finish-from-dev', 'bot'], repoDir, {
+    env: { CLAUDECODE: '1' },
+  });
   assert.equal(result.status, 0, result.stderr || result.stdout);
   const agentBranch = extractCreatedBranch(result.stdout);
   const agentWorktree = extractCreatedWorktree(result.stdout);
+  assert.match(agentWorktree, new RegExp(`${escapeRegexLiteral(repoDir)}/\\.omc/agent-worktrees/`));
 
   commitFile(agentWorktree, 'agent-finish-main.txt', 'merged via inferred main base\n', 'agent change for main');
 
