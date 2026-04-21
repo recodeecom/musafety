@@ -1,0 +1,98 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="760" viewBox="0 0 1600 760" role="img" aria-labelledby="title desc">
+  <title id="title">parallel agent collision loop</title>
+  <desc id="desc">Five agents touch the same files, one overwrite leads to deletion, lost work, and a regression loop.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" x2="0" y1="0" y2="1">
+      <stop offset="0%" stop-color="#0b1220"/>
+      <stop offset="100%" stop-color="#080d18"/>
+    </linearGradient>
+    <marker id="arrow" markerWidth="12" markerHeight="12" refX="9" refY="6" orient="auto" markerUnits="strokeWidth">
+      <path d="M1,1 L11,6 L1,11 z" fill="#cbd5e1"/>
+    </marker>
+    <style>
+      .panel { fill: #252525; stroke: #8f8f8f; stroke-width: 1.5; rx: 12; }
+      .label { fill: #f8fafc; font-family: 'IBM Plex Sans', 'Segoe UI', sans-serif; font-size: 17px; }
+      .muted { fill: #cbd5e1; font-family: 'IBM Plex Sans', 'Segoe UI', sans-serif; font-size: 17px; }
+      .wire { fill: none; stroke: #cbd5e1; stroke-width: 2; marker-end: url(#arrow); }
+    </style>
+  </defs>
+
+  <rect width="1600" height="760" fill="url(#bg)"/>
+  <rect x="18" y="18" width="1564" height="724" rx="18" fill="#0f1623" stroke="#25314a"/>
+
+  <g>
+    <rect class="panel" x="90" y="110" width="220" height="64"/>
+    <text class="label" x="112" y="138">
+      <tspan x="112" dy="0">Agent A adds assertions</tspan>
+      <tspan x="112" dy="22">in a shared test</tspan>
+    </text>
+
+    <rect class="panel" x="90" y="210" width="220" height="64"/>
+    <text class="label" x="112" y="238">
+      <tspan x="112" dy="0">Agent B rewrites</tspan>
+      <tspan x="112" dy="22">the same flow</tspan>
+    </text>
+
+    <rect class="panel" x="90" y="310" width="220" height="64"/>
+    <text class="label" x="112" y="338">
+      <tspan x="112" dy="0">Agent C updates</tspan>
+      <tspan x="112" dy="22">the shared helper</tspan>
+    </text>
+
+    <rect class="panel" x="90" y="410" width="220" height="64"/>
+    <text class="label" x="112" y="438">
+      <tspan x="112" dy="0">Agent D deletes lines</tspan>
+      <tspan x="112" dy="22">Agent A just added</tspan>
+    </text>
+
+    <rect class="panel" x="90" y="510" width="220" height="64"/>
+    <text class="label" x="112" y="538">
+      <tspan x="112" dy="0">Agent E saves</tspan>
+      <tspan x="112" dy="22">an older snapshot</tspan>
+    </text>
+  </g>
+
+  <rect class="panel" x="350" y="310" width="240" height="64"/>
+  <text class="label" x="380" y="338">
+    <tspan x="380" dy="0">Several agents touch</tspan>
+    <tspan x="380" dy="22">the same files</tspan>
+  </text>
+
+  <rect class="panel" x="630" y="290" width="230" height="64"/>
+  <text class="label" x="658" y="318">
+    <tspan x="658" dy="0">One agent overwrites</tspan>
+    <tspan x="658" dy="22">another agent's edits</tspan>
+  </text>
+
+  <rect class="panel" x="900" y="290" width="210" height="64"/>
+  <text class="label" x="926" y="318">
+    <tspan x="926" dy="0">Another agent deletes</tspan>
+    <tspan x="926" dy="22">code the others added</tspan>
+  </text>
+
+  <rect class="panel" x="1150" y="290" width="200" height="64"/>
+  <text class="label" x="1176" y="318">
+    <tspan x="1176" dy="0">Lost work, rework,</tspan>
+    <tspan x="1176" dy="22">and review confusion</tspan>
+  </text>
+
+  <rect class="panel" x="1370" y="290" width="170" height="64"/>
+  <text class="label" x="1395" y="318">
+    <tspan x="1395" dy="0">Regression risk</tspan>
+    <tspan x="1395" dy="22">and flaky fixes grow</tspan>
+  </text>
+
+  <path class="wire" d="M310 142 C345 142 350 180 390 332"/>
+  <path class="wire" d="M310 242 C350 242 360 260 390 332"/>
+  <path class="wire" d="M310 342 L350 342"/>
+  <path class="wire" d="M310 442 C345 442 360 420 390 352"/>
+  <path class="wire" d="M310 542 C345 542 360 500 390 352"/>
+
+  <path class="wire" d="M590 342 L630 322"/>
+  <path class="wire" d="M860 322 L900 322"/>
+  <path class="wire" d="M1110 322 L1150 322"/>
+  <path class="wire" d="M1350 322 L1370 322"/>
+  <path class="wire" d="M1540 330 C1570 360 1568 436 1480 452 L640 452 C590 452 570 424 570 374"/>
+
+  <text class="muted" x="86" y="662">Five agents touch the same files. One overwrite turns into deletion, lost work, and a regression loop.</text>
+</svg>
