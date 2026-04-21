@@ -22,53 +22,23 @@
 
 ## The problem
 
-I was running ~30 Codex agents in parallel and hit a wall: they kept working on the same files at the same time — especially tests — and started overwriting or deleting each other's changes. More agents meant *less* forward progress, not more. Classic de-progressive loop.
+![Parallel agents colliding in the same files](https://raw.githubusercontent.com/recodeee/gitguardex/main/docs/images/problem-agent-collision.svg)
 
-GitGuardex exists to stop that loop. Every agent gets its own worktree, claims the files it's touching, and can't clobber files another agent has claimed. Your local branch stays clean; agents stay in their lanes.
+I was running ~30 Codex agents in parallel and hit a wall: they kept working on the same files at the same time — especially tests — and started overwriting or deleting each other's changes. More agents meant *less* forward progress, not more. Classic de-progressive loop.
 
 ### Solution
 
-```mermaid
-flowchart LR
-    A[Agent A adds assertions in a shared test] --> S[Several agents touch the same files]
-    B[Agent B rewrites the same test flow] --> S
-    C[Agent C updates the shared helper] --> S
-    D[Agent D deletes lines Agent A just added] --> S
-    E[Agent E saves an older snapshot of the file] --> S
-    S --> F[One agent overwrites another agent's edits]
-    F --> G[Another agent deletes code the others just added]
-    G --> H[Lost work, rework, and review confusion]
-    H --> I[Regression risk and flaky fixes grow]
-    I --> S
+![Agent branch/worktree start protocol](https://raw.githubusercontent.com/recodeee/gitguardex/main/docs/images/workflow-branch-start.svg)
+
+GitGuardex exists to stop that loop. Every agent gets its own worktree, claims the files it's touching, and can't clobber files another agent has claimed. Your local branch stays clean; agents stay in their lanes.
+
+## GitHub About description
+
+The canonical GitHub About copy lives in [about_description.txt](./about_description.txt):
+
+```text
+Guardian T-Rex for your multi-agent repo. Isolated worktrees, file locks, and PR-only merges stop parallel Codex & Claude agents from overwriting each other's work. Auto-wires Oh My Codex, Oh My Claude, OpenSpec, and Caveman.
 ```
-
-<!-- ===================================================================== -->
-<!-- 1) GITHUB ABOUT SIDEBAR DESCRIPTION                                   -->
-<!-- ===================================================================== -->
-<!--                                                                       -->
-<!-- Paste one of these into:                                              -->
-<!--   Repo → Settings → General → Description                             -->
-<!--                                                                       -->
-<!-- The install command is removed — About is plain text, so there's no   -->
-<!-- way to make it copyable. The install lives in the README where the    -->
-<!-- code block gets GitHub's auto copy button on hover.                   -->
-<!-- ===================================================================== -->
-
-Option A — leads with the tagline (matches README h1):
-    Guardian T-Rex for your multi-agent repo. Isolated worktrees, file locks,
-    and PR-only merges stop parallel Codex & Claude agents from overwriting
-    each other's work. Auto-wires Oh My Codex, Oh My Claude, OpenSpec, and
-    Caveman.
-
-Option B — leads with the benefit:
-    Run many Codex & Claude agents in parallel without them overwriting each
-    other. Isolated worktrees, file locks, PR-only merges. Auto-wires Oh My
-    Codex, Oh My Claude, OpenSpec, and Caveman in every worktree.
-
-Option C — punchiest, under 200 chars:
-    Safety layer for parallel Codex & Claude agents. Isolated worktrees +
-    file locks + PR-only merges. Auto-wires Oh My Codex, Oh My Claude,
-    OpenSpec, and Caveman.
 
 
 <!-- ===================================================================== -->
