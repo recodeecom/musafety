@@ -15,12 +15,99 @@ const sessionSchema = require(path.join(
   'guardex-active-agents',
   'session-schema.js',
 ));
+const extensionEntry = path.join(repoRoot, 'templates', 'vscode', 'guardex-active-agents', 'extension.js');
 
 function runNode(scriptPath, args, options = {}) {
   return cp.spawnSync('node', [scriptPath, ...args], {
     encoding: 'utf8',
     ...options,
   });
+}
+
+function loadExtensionWithMockVscode(mockVscode) {
+  const Module = require('node:module');
+  const originalLoad = Module._load;
+  delete require.cache[require.resolve(extensionEntry)];
+
+  Module._load = function patchedModuleLoad(request, parent, isMain) {
+    if (request === 'vscode') {
+      return mockVscode;
+    }
+    return originalLoad.call(this, request, parent, isMain);
+  };
+
+  try {
+    return require(extensionEntry);
+  } finally {
+    Module._load = originalLoad;
+  }
+}
+
+function createMockVscode(tempRoot) {
+  const registrations = {
+    providers: [],
+  };
+
+  class TreeItem {
+    constructor(label, collapsibleState) {
+      this.label = label;
+      this.collapsibleState = collapsibleState;
+    }
+  }
+
+  class ThemeIcon {
+    constructor(id) {
+      this.id = id;
+    }
+  }
+
+  class EventEmitter {
+    constructor() {
+      this.event = () => {};
+    }
+
+    fire() {}
+  }
+
+  const disposable = () => ({ dispose() {} });
+  const fileWatcher = {
+    onDidCreate() {},
+    onDidChange() {},
+    onDidDelete() {},
+    dispose() {},
+  };
+
+  return {
+    registrations,
+    vscode: {
+      TreeItem,
+      ThemeIcon,
+      EventEmitter,
+      TreeItemCollapsibleState: {
+        None: 0,
+        Expanded: 1,
+      },
+      commands: {
+        executeCommand: async () => {},
+        registerCommand: () => disposable(),
+      },
+      Uri: {
+        file: (fsPath) => ({ fsPath }),
+      },
+      window: {
+        registerTreeDataProvider: (viewId, provider) => {
+          registrations.providers.push({ viewId, provider });
+          return disposable();
+        },
+      },
+      workspace: {
+        createFileSystemWatcher: () => fileWatcher,
+        findFiles: async () => [],
+        onDidChangeWorkspaceFolders: () => disposable(),
+        workspaceFolders: [{ uri: { fsPath: tempRoot } }],
+      },
+    },
+  };
 }
 
 test('agent-session-state writes and removes active session records', () => {
@@ -131,4 +218,27 @@ test('install-vscode-active-agents-extension installs the current extension vers
   assert.equal(fs.existsSync(path.join(installedDir, 'session-schema.js')), true);
   assert.equal(fs.existsSync(staleDir), false);
   assert.match(result.stdout, /Reload the VS Code window/);
+});
+
+test('active-agents extension registers a provider with getTreeItem', async () => {
+  const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'guardex-vscode-view-'));
+  const { registrations, vscode } = createMockVscode(tempRoot);
+  const extension = loadExtensionWithMockVscode(vscode);
+  const context = { subscriptions: [] };
+
+  extension.activate(context);
+
+  assert.equal(registrations.providers.length, 1);
+  assert.equal(registrations.providers[0].viewId, 'gitguardex.activeAgents');
+
+  const provider = registrations.providers[0].provider;
+  assert.equal(typeof provider.getTreeItem, 'function');
+
+  const [rootItem] = await provider.getChildren();
+  assert.equal(rootItem.label, 'No active Guardex agents');
+  assert.equal(provider.getTreeItem(rootItem), rootItem);
+
+  for (const subscription of context.subscriptions) {
+    subscription.dispose?.();
+  }
 });

@@ -53,6 +53,10 @@ class ActiveAgentsProvider {
     this.onDidChangeTreeData = this.onDidChangeTreeDataEmitter.event;
   }
 
+  getTreeItem(element) {
+    return element;
+  }
+
   refresh() {
     this.onDidChangeTreeDataEmitter.fire();
   }
