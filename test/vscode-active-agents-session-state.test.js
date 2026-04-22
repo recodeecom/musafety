@@ -63,6 +63,13 @@ function createMockVscode(tempRoot) {
   const registrations = {
     providers: [],
     treeViews: [],
+    commands: new Map(),
+    executedCommands: [],
+    terminals: [],
+    openedDocuments: [],
+    shownDocuments: [],
+    infoMessages: [],
+    warningMessages: [],
   };
 
   class TreeItem {
@@ -105,14 +112,46 @@ function createMockVscode(tempRoot) {
         Expanded: 1,
       },
       commands: {
-        executeCommand: async () => {},
-        registerCommand: () => disposable(),
+        executeCommand: async (...args) => {
+          registrations.executedCommands.push(args);
+        },
+        registerCommand: (command, handler) => {
+          registrations.commands.set(command, handler);
+          return disposable();
+        },
       },
       Uri: {
         file: (fsPath) => ({ fsPath }),
       },
       window: {
-        showInformationMessage: async () => {},
+        showInformationMessage: async (...args) => {
+          registrations.infoMessages.push(args);
+          return undefined;
+        },
+        showWarningMessage: async (...args) => {
+          registrations.warningMessages.push(args);
+          return undefined;
+        },
+        createTerminal: (options) => {
+          const terminal = {
+            options,
+            shown: false,
+            sentTexts: [],
+            show() {
+              this.shown = true;
+            },
+            sendText(text, addNewLine) {
+              this.sentTexts.push({ text, addNewLine });
+            },
+            dispose() {},
+          };
+          registrations.terminals.push(terminal);
+          return terminal;
+        },
+        showTextDocument: async (document, options) => {
+          registrations.shownDocuments.push({ document, options });
+          return { document };
+        },
         createTreeView: (viewId, options) => {
           const treeView = {
             viewId,
@@ -131,6 +170,14 @@ function createMockVscode(tempRoot) {
         },
       },
       workspace: {
+        openTextDocument: async (options) => {
+          const document = {
+            ...options,
+            uri: { scheme: 'untitled' },
+          };
+          registrations.openedDocuments.push(document);
+          return document;
+        },
         createFileSystemWatcher: () => fileWatcher,
         findFiles: async () => [],
         onDidChangeWorkspaceFolders: () => disposable(),
@@ -524,6 +571,143 @@ test('active-agents extension splits working and thinking sessions into separate
     value: 2,
     tooltip: '2 active agents · 1 working now',
   });
+
+  for (const subscription of context.subscriptions) {
+    subscription.dispose?.();
+  }
+});
+
+test('active-agents extension launches finish and sync commands in session terminals', async () => {
+  const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'guardex-vscode-inline-actions-'));
+  const worktreePath = fs.mkdtempSync(path.join(os.tmpdir(), 'guardex-vscode-inline-worktree-'));
+  initGitRepo(worktreePath);
+  fs.writeFileSync(path.join(worktreePath, 'tracked.txt'), 'base\n', 'utf8');
+  runGit(worktreePath, ['add', 'tracked.txt']);
+  runGit(worktreePath, ['commit', '-m', 'baseline']);
+
+  const sessionPath = sessionSchema.sessionFilePathForBranch(tempRoot, 'agent/codex/live-task');
+  fs.mkdirSync(path.dirname(sessionPath), { recursive: true });
+  fs.writeFileSync(
+    sessionPath,
+    `${JSON.stringify(sessionSchema.buildSessionRecord({
+      repoRoot: tempRoot,
+      branch: 'agent/codex/live-task',
+      taskName: 'live-task',
+      agentName: 'codex',
+      worktreePath,
+      pid: process.pid,
+      cliName: 'codex',
+    }), null, 2)}\n`,
+    'utf8',
+  );
+
+  const { registrations, vscode } = createMockVscode(tempRoot);
+  vscode.workspace.findFiles = async () => [{ fsPath: sessionPath }];
+  const extension = loadExtensionWithMockVscode(vscode);
+  const context = { subscriptions: [] };
+
+  extension.activate(context);
+
+  const provider = registrations.providers[0].provider;
+  const [repoItem] = await provider.getChildren();
+  const [agentsSection] = await provider.getChildren(repoItem);
+  const [thinkingSection] = await provider.getChildren(agentsSection);
+  const [sessionItem] = await provider.getChildren(thinkingSection);
+
+  await registrations.commands.get('gitguardex.activeAgents.finishSession')(sessionItem.session);
+  await registrations.commands.get('gitguardex.activeAgents.syncSession')(sessionItem.session);
+
+  assert.equal(registrations.terminals.length, 2);
+  assert.equal(registrations.terminals[0].options.cwd, worktreePath);
+  assert.equal(registrations.terminals[0].options.iconPath.id, 'check');
+  assert.match(registrations.terminals[0].options.name, /GitGuardex Finish: live-task/);
+  assert.deepEqual(registrations.terminals[0].sentTexts, [
+    { text: "gx branch finish --branch 'agent/codex/live-task'", addNewLine: true },
+  ]);
+  assert.equal(registrations.terminals[0].shown, true);
+
+  assert.equal(registrations.terminals[1].options.cwd, worktreePath);
+  assert.equal(registrations.terminals[1].options.iconPath.id, 'sync');
+  assert.match(registrations.terminals[1].options.name, /GitGuardex Sync: live-task/);
+  assert.deepEqual(registrations.terminals[1].sentTexts, [
+    { text: 'gx sync', addNewLine: true },
+  ]);
+  assert.equal(registrations.terminals[1].shown, true);
+
+  for (const subscription of context.subscriptions) {
+    subscription.dispose?.();
+  }
+});
+
+test('active-agents extension confirms stop and sends SIGTERM to the session pid', async () => {
+  const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'guardex-vscode-stop-session-'));
+  const { registrations, vscode } = createMockVscode(tempRoot);
+  const extension = loadExtensionWithMockVscode(vscode);
+  const context = { subscriptions: [] };
+  let refreshCount = 0;
+  let killed = null;
+  const originalKill = process.kill;
+
+  vscode.window.showWarningMessage = async (...args) => {
+    registrations.warningMessages.push(args);
+    return 'Stop';
+  };
+  process.kill = (pid, signal) => {
+    killed = { pid, signal };
+  };
+
+  try {
+    extension.activate(context);
+    const provider = registrations.providers[0].provider;
+    const originalRefresh = provider.refresh.bind(provider);
+    provider.refresh = () => {
+      refreshCount += 1;
+      return originalRefresh();
+    };
+
+    await registrations.commands.get('gitguardex.activeAgents.stopSession')({
+      label: 'live-task',
+      pid: 4242,
+    });
+  } finally {
+    process.kill = originalKill;
+  }
+
+  assert.deepEqual(killed, { pid: 4242, signal: 'SIGTERM' });
+  assert.equal(refreshCount, 1);
+  assert.equal(registrations.warningMessages.length, 1);
+  assert.match(registrations.warningMessages[0][0], /Stop live-task\?/);
+
+  for (const subscription of context.subscriptions) {
+    subscription.dispose?.();
+  }
+});
+
+test('active-agents extension opens git diff output in an untitled editor', async () => {
+  const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'guardex-vscode-open-diff-'));
+  const worktreePath = fs.mkdtempSync(path.join(os.tmpdir(), 'guardex-vscode-open-diff-worktree-'));
+  initGitRepo(worktreePath);
+  fs.writeFileSync(path.join(worktreePath, 'tracked.txt'), 'base\n', 'utf8');
+  runGit(worktreePath, ['add', 'tracked.txt']);
+  runGit(worktreePath, ['commit', '-m', 'baseline']);
+  fs.writeFileSync(path.join(worktreePath, 'tracked.txt'), 'base\nchanged\n', 'utf8');
+
+  const { registrations, vscode } = createMockVscode(tempRoot);
+  const extension = loadExtensionWithMockVscode(vscode);
+  const context = { subscriptions: [] };
+
+  extension.activate(context);
+
+  await registrations.commands.get('gitguardex.activeAgents.openSessionDiff')({
+    label: 'live-task',
+    worktreePath,
+  });
+
+  assert.equal(registrations.openedDocuments.length, 1);
+  assert.equal(registrations.openedDocuments[0].language, 'diff');
+  assert.match(registrations.openedDocuments[0].content, /^diff --git /);
+  assert.equal(registrations.shownDocuments.length, 1);
+  assert.equal(registrations.shownDocuments[0].document.uri.scheme, 'untitled');
 
   for (const subscription of context.subscriptions) {
     subscription.dispose?.();

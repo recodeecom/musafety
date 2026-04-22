@@ -26,6 +26,26 @@
       {
         "command": "gitguardex.activeAgents.openWorktree",
         "title": "Open Agent Worktree"
+      },
+      {
+        "command": "gitguardex.activeAgents.finishSession",
+        "title": "Finish",
+        "icon": "$(check)"
+      },
+      {
+        "command": "gitguardex.activeAgents.syncSession",
+        "title": "Sync",
+        "icon": "$(sync)"
+      },
+      {
+        "command": "gitguardex.activeAgents.stopSession",
+        "title": "Stop",
+        "icon": "$(debug-stop)"
+      },
+      {
+        "command": "gitguardex.activeAgents.openSessionDiff",
+        "title": "Open Diff",
+        "icon": "$(diff)"
       }
     ],
     "views": {
@@ -48,6 +68,26 @@
       "view/item/context": [
         {
           "command": "gitguardex.activeAgents.openWorktree",
+          "when": "view == gitguardex.activeAgents && viewItem == gitguardex.session",
+          "group": "inline"
+        },
+        {
+          "command": "gitguardex.activeAgents.finishSession",
+          "when": "view == gitguardex.activeAgents && viewItem == gitguardex.session",
+          "group": "inline"
+        },
+        {
+          "command": "gitguardex.activeAgents.syncSession",
+          "when": "view == gitguardex.activeAgents && viewItem == gitguardex.session",
+          "group": "inline"
+        },
+        {
+          "command": "gitguardex.activeAgents.stopSession",
+          "when": "view == gitguardex.activeAgents && viewItem == gitguardex.session",
+          "group": "inline"
+        },
+        {
+          "command": "gitguardex.activeAgents.openSessionDiff",
           "when": "view == gitguardex.activeAgents && viewItem == gitguardex.session",
           "group": "inline"
         }
