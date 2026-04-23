@@ -33,6 +33,8 @@ Verification notes:
 
 ## 4. Cleanup
 
-- [ ] 4.1 Run `gx branch finish --branch "agent/codex/active-agents-terminal-controls-2026-04-23-17-11" --base main --via-pr --wait-for-merge --cleanup`.
-- [ ] 4.2 Record the PR URL and final merge state (`MERGED`) in the completion handoff.
-- [ ] 4.3 Confirm the sandbox worktree is gone (`git worktree list` no longer shows the agent path; `git branch -a` shows no surviving local/remote refs for the branch).
+- [x] 4.1 Run `gx branch finish --branch "agent/codex/active-agents-terminal-controls-2026-04-23-17-11" --base main --via-pr --wait-for-merge --cleanup`.
+- [x] 4.2 Record the PR URL and final merge state (`MERGED`) in the completion handoff.
+- [x] 4.3 Confirm the sandbox worktree is gone (`git worktree list` no longer shows the agent path; `git branch -a` shows no surviving local/remote refs for the branch).
+
+Completion handoff: 2026-04-23 15:25Z PR https://github.com/recodeee/gitguardex/pull/385 reached `MERGED` (`gh pr view 385 --json number,url,state,mergedAt,headRefName,baseRefName`). `gx branch finish --branch "agent/codex/active-agents-terminal-controls-2026-04-23-17-11" --base main --via-pr --wait-for-merge --cleanup` exited 0. `git fetch --prune origin` removed `origin/agent/codex/active-agents-terminal-controls-2026-04-23-17-11`; `git branch -a --list "*active-agents-terminal-controls*"` returned no surviving refs for that merged branch; `git worktree list` no longer showed `/home/deadpool/Documents/recodee/gitguardex/.omx/agent-worktrees/agent__codex__active-agents-terminal-controls-2026-04-23-17-11`.
