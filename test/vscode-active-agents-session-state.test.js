@@ -2376,6 +2376,62 @@ test('active-agents extension surfaces plain managed worktrees from workspace fa
   }
 });
 
+test('active-agents extension resolves owning repo sessions when the window is opened on a linked worktree', async () => {
+  const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'guardex-vscode-linked-worktree-view-'));
+  initGitRepo(tempRoot);
+  fs.writeFileSync(path.join(tempRoot, 'tracked.txt'), 'base\n', 'utf8');
+  runGit(tempRoot, ['add', 'tracked.txt']);
+  runGit(tempRoot, ['commit', '-m', 'baseline']);
+
+  const branch = 'agent/codex/linked-worktree-visible-task';
+  const worktreePath = path.join(
+    tempRoot,
+    '.omx',
+    'agent-worktrees',
+    'agent__codex__linked-worktree-visible-task',
+  );
+  fs.mkdirSync(path.dirname(worktreePath), { recursive: true });
+  runGit(tempRoot, ['worktree', 'add', '-b', branch, worktreePath]);
+  fs.writeFileSync(path.join(worktreePath, 'tracked.txt'), 'base\nchanged\n', 'utf8');
+
+  writeSessionRecord(tempRoot, sessionSchema.buildSessionRecord({
+    repoRoot: tempRoot,
+    branch,
+    taskName: 'linked-worktree-visible-task',
+    agentName: 'codex',
+    worktreePath,
+    pid: process.pid,
+    cliName: 'codex',
+    state: 'working',
+  }));
+
+  const { registrations, vscode } = createMockVscode(tempRoot);
+  vscode.workspace.workspaceFolders = [{ uri: { fsPath: worktreePath } }];
+  vscode.workspace.findFiles = async () => [];
+  const extension = loadExtensionWithMockVscode(vscode);
+  const context = { subscriptions: [] };
+
+  extension.activate(context);
+  await flushAsyncWork();
+
+  const provider = registrations.providers[0].provider;
+  const [repoItem] = await provider.getChildren();
+  assert.equal(repoItem.label, path.basename(tempRoot));
+  assert.equal(repoItem.description, '1 working agent · 0 idle agents · 0 unassigned changes · 0 locked files · 0 conflicts');
+
+  const workingSection = await getSectionByLabel(provider, repoItem, 'Working now');
+  const { worktreeItem, sessionItem } = await getOnlyWorktreeAndSession(provider, workingSection);
+  assert.equal(worktreeItem, null);
+  assert.equal(sessionItem.session.repoRoot, tempRoot);
+  assert.equal(sessionItem.session.worktreePath, worktreePath);
+  assert.equal(sessionItem.session.branch, branch);
+  assert.match(sessionItem.description, /^Working: codex · via OpenAI · 1 changed file/);
+
+  for (const subscription of context.subscriptions) {
+    subscription.dispose?.();
+  }
+});
+
 test('active-agents extension decorates sessions and repo changes from the lock registry', async () => {
   const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'guardex-vscode-lock-decorations-'));
   initGitRepo(tempRoot);
