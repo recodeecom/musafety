@@ -1781,6 +1781,89 @@ async function openSessionDiff(session) {
   }
 }
 
+function readGitDirPath(targetPath) {
+  const normalizedTargetPath = typeof targetPath === 'string' ? targetPath.trim() : '';
+  if (!normalizedTargetPath) {
+    return '';
+  }
+
+  const gitPath = path.join(path.resolve(normalizedTargetPath), '.git');
+  try {
+    if (fs.statSync(gitPath).isDirectory()) {
+      return gitPath;
+    }
+  } catch (_error) {
+    return '';
+  }
+
+  try {
+    const gitPointer = fs.readFileSync(gitPath, 'utf8');
+    const match = gitPointer.match(/^gitdir:\s*(.+)$/m);
+    if (match?.[1]) {
+      return path.resolve(path.dirname(gitPath), match[1].trim());
+    }
+  } catch (_error) {
+    return '';
+  }
+
+  return '';
+}
+
+function resolveRepoRootFromGitDir(targetPath) {
+  const gitDir = readGitDirPath(targetPath);
+  if (!gitDir) {
+    return '';
+  }
+
+  let commonDir = gitDir;
+  try {
+    const commonDirPath = path.join(gitDir, 'commondir');
+    if (fs.existsSync(commonDirPath)) {
+      const rawCommonDir = fs.readFileSync(commonDirPath, 'utf8').trim();
+      if (rawCommonDir) {
+        commonDir = path.resolve(gitDir, rawCommonDir);
+      }
+    }
+  } catch (_error) {
+    // Fall back to the direct git dir when commondir is unreadable.
+  }
+
+  return path.basename(commonDir) === '.git'
+    ? path.resolve(path.dirname(commonDir))
+    : '';
+}
+
+function readGitTopLevel(targetPath) {
+  try {
+    return cp.execFileSync('git', ['-C', targetPath, 'rev-parse', '--show-toplevel'], {
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'ignore'],
+    }).trim();
+  } catch (_error) {
+    return '';
+  }
+}
+
+function resolveWorkspaceFolderRepoRoot(workspacePath) {
+  const normalizedWorkspacePath = typeof workspacePath === 'string' ? workspacePath.trim() : '';
+  if (!normalizedWorkspacePath) {
+    return '';
+  }
+
+  const absoluteWorkspacePath = path.resolve(normalizedWorkspacePath);
+  const directRepoRoot = resolveRepoRootFromGitDir(absoluteWorkspacePath);
+  if (directRepoRoot) {
+    return directRepoRoot;
+  }
+
+  const gitTopLevel = readGitTopLevel(absoluteWorkspacePath);
+  if (!gitTopLevel) {
+    return absoluteWorkspacePath;
+  }
+
+  return resolveRepoRootFromGitDir(gitTopLevel) || path.resolve(gitTopLevel);
+}
+
 function repoRootFromSessionFile(filePath) {
   return path.resolve(path.dirname(filePath), '..', '..', '..');
 }
@@ -2109,7 +2192,7 @@ async function findRepoSessionEntries() {
   }
   for (const workspaceFolder of vscode.workspace.workspaceFolders || []) {
     if (workspaceFolder?.uri?.fsPath) {
-      addRepoRootCandidate(workspaceFolder.uri.fsPath);
+      addRepoRootCandidate(resolveWorkspaceFolderRepoRoot(workspaceFolder.uri.fsPath));
     }
   }
 
