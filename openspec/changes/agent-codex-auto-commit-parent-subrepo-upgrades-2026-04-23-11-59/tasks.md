@@ -13,6 +13,7 @@
 - [x] Add parent gitlink detection and path-scoped parent commit to `agent-branch-finish`.
 - [x] Pass parent gitlink controls through `gx finish`.
 - [x] Compare gitlink index SHA to nested HEAD so parent `diff.ignoreSubmodules=all` does not hide pointer upgrades.
+- [x] Stage the gitlink with `git update-index --cacheinfo` so registered submodule ignore settings cannot suppress the pointer update.
 
 ## 4. Cleanup
 

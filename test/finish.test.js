@@ -190,6 +190,8 @@ test('agent-branch-finish auto-commits parent gitlink after nested repo finish',
   assert.equal(result.status, 0, result.stderr || result.stdout);
   result = runCmd('git', ['config', 'diff.ignoreSubmodules', 'all'], parentDir);
   assert.equal(result.status, 0, result.stderr || result.stdout);
+  result = runCmd('git', ['config', 'submodule.packages/child.ignore', 'all'], parentDir);
+  assert.equal(result.status, 0, result.stderr || result.stdout);
   fs.writeFileSync(path.join(parentDir, 'unrelated-parent.txt'), 'already staged\n', 'utf8');
   result = runCmd('git', ['add', 'unrelated-parent.txt'], parentDir);
   assert.equal(result.status, 0, result.stderr || result.stdout);

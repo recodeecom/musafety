@@ -519,7 +519,7 @@ maybe_auto_commit_parent_gitlink() {
   local gitlink_index_sha=""
   local gitlink_parent_head_sha=""
   local subrepo_head_sha=""
-  local add_output=""
+  local update_index_output=""
   local commit_output=""
   local commit_message=""
 
@@ -563,21 +563,24 @@ maybe_auto_commit_parent_gitlink() {
   gitlink_index_sha="$(git -C "$super_root" ls-files -s -- "$subrepo_rel" | awk 'NR == 1 { print $2 }')"
   gitlink_parent_head_sha="$(git -C "$super_root" ls-tree HEAD -- "$subrepo_rel" | awk 'NR == 1 { print $3 }')"
   subrepo_head_sha="$(git -C "$repo_common_root" rev-parse HEAD 2>/dev/null || true)"
+  if [[ -z "$subrepo_head_sha" ]]; then
+    return 0
+  fi
   if [[ -n "$gitlink_index_sha" && "$gitlink_index_sha" == "$gitlink_parent_head_sha" && "$gitlink_index_sha" == "$subrepo_head_sha" ]]; then
     return 0
   fi
 
-  if ! add_output="$(git -C "$super_root" add -- "$subrepo_rel" 2>&1)"; then
-    echo "[agent-branch-finish] Warning: parent gitlink staging failed for ${subrepo_rel} in ${super_root}." >&2
-    [[ -n "$add_output" ]] && echo "$add_output" >&2
-    return 0
-  fi
-  if git -C "$super_root" diff --cached --quiet -- "$subrepo_rel"; then
-    gitlink_index_sha="$(git -C "$super_root" ls-files -s -- "$subrepo_rel" | awk 'NR == 1 { print $2 }')"
-    gitlink_parent_head_sha="$(git -C "$super_root" ls-tree HEAD -- "$subrepo_rel" | awk 'NR == 1 { print $3 }')"
-    if [[ "$gitlink_index_sha" == "$gitlink_parent_head_sha" ]]; then
+  if [[ "$gitlink_index_sha" != "$subrepo_head_sha" ]]; then
+    if ! update_index_output="$(git -C "$super_root" update-index --cacheinfo 160000 "$subrepo_head_sha" "$subrepo_rel" 2>&1)"; then
+      echo "[agent-branch-finish] Warning: parent gitlink staging failed for ${subrepo_rel} in ${super_root}." >&2
+      [[ -n "$update_index_output" ]] && echo "$update_index_output" >&2
       return 0
     fi
+    gitlink_index_sha="$(git -C "$super_root" ls-files -s -- "$subrepo_rel" | awk 'NR == 1 { print $2 }')"
+  fi
+  gitlink_parent_head_sha="$(git -C "$super_root" ls-tree HEAD -- "$subrepo_rel" | awk 'NR == 1 { print $3 }')"
+  if [[ "$gitlink_index_sha" == "$gitlink_parent_head_sha" ]]; then
+    return 0
   fi
 
   commit_message="Update ${subrepo_rel} subrepo pointer"
