@@ -648,7 +648,7 @@ Task is complete only when:
 
 If anything blocks, append a `BLOCKED:` note and stop. Do not half-finish.
 
-OMX completion policy: when a task is done, the agent must commit the task changes, push the agent branch, and create/update a PR before considering the branch complete.
+OMX completion policy: when a task is done, the agent must run `gx branch finish --branch "<agent-branch>" --via-pr --wait-for-merge --cleanup` (or `gx finish --all`) instead of standalone `git push` / `gh pr` commands. The finish flow owns commit, push, PR creation/update, merge wait, and sandbox cleanup.
 
 ### Parallel safety
 

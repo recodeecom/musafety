@@ -868,8 +868,9 @@ test('install configures AGENTS managed policy block with GX contract wording', 
   assert.match(agentsContent, /## Multi-Agent Execution Contract: Guardex \+ Colony/);
   assert.match(
     agentsContent,
-    /OMX completion policy: when a task is done, the agent must commit the task changes, push the agent branch, and create\/update a PR/,
+    /OMX completion policy: when a task is done, the agent must run `gx branch finish --branch "<agent-branch>" --via-pr --wait-for-merge --cleanup`/,
   );
+  assert.match(agentsContent, /instead of standalone `git push` \/ `gh pr` commands/);
   assert.match(agentsContent, /### Colony coordination loop/);
   assert.match(agentsContent, /### Token \/ context budget/);
   assert.match(agentsContent, /### Caveman style/);
