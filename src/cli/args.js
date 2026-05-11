@@ -1002,6 +1002,7 @@ function parseFinishArgs(rawArgs, defaults = {}) {
     keepRemote: false,
     noAutoCommit: false,
     parentGitlinkCommit: defaults.parentGitlinkCommit ?? true,
+    advanceSubmodules: false,
     failFast: false,
     commitMessage: '',
     mergeMode: defaults.mergeMode || 'pr',
@@ -1107,6 +1108,14 @@ function parseFinishArgs(rawArgs, defaults = {}) {
     }
     if (arg === '--fail-fast') {
       options.failFast = true;
+      continue;
+    }
+    if (arg === '--advance-submodules') {
+      options.advanceSubmodules = true;
+      continue;
+    }
+    if (arg === '--no-advance-submodules') {
+      options.advanceSubmodules = false;
       continue;
     }
     throw new Error(`Unknown option: ${arg}`);

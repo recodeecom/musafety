@@ -26,6 +26,7 @@ const {
   parseFinishArgs,
   parseSyncArgs,
 } = require('../cli/args');
+const submoduleModule = require('../submodule');
 
 function claimLocksForAutoCommit(repoRoot, worktreePath, branch) {
   const changedFiles = uniquePreserveOrder([
@@ -303,6 +304,32 @@ function finish(rawArgs, defaults = {}) {
         console.log(`[${TOOL_NAME}] Auto-committed '${branch}' before finish.`);
       } else if (commitState.changed && commitState.dryRun) {
         console.log(`[${TOOL_NAME}] [dry-run] Would auto-commit pending changes on '${branch}'.`);
+      }
+
+      if (options.advanceSubmodules && worktreePath) {
+        const gitmodulesPath = path.join(worktreePath, '.gitmodules');
+        if (fs.existsSync(gitmodulesPath)) {
+          if (options.dryRun) {
+            const preview = submoduleModule.advance({
+              target: worktreePath,
+              push: false,
+              commit: false,
+              dryRun: true,
+            });
+            console.log(`[${TOOL_NAME}] [dry-run] Would advance submodules for '${branch}':`);
+            submoduleModule.printAdvanceResult(preview);
+          } else {
+            const advanceResult = submoduleModule.advance({
+              target: worktreePath,
+              push: false,
+              commit: true,
+              dryRun: false,
+            });
+            submoduleModule.printAdvanceResult(advanceResult);
+          }
+        } else {
+          console.log(`[${TOOL_NAME}] --advance-submodules ignored: '${branch}' has no .gitmodules.`);
+        }
       }
 
       const finishArgs = [
