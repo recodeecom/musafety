@@ -187,6 +187,7 @@ const {
   installUserLevelAsset,
   removeLegacyManagedRepoFile,
   ensureAgentsSnippet,
+  ensureClaudeAgentsLink,
   ensureManagedGitignore,
   buildRepoVscodeSettings,
   ensureRepoVscodeSettings,
@@ -1581,6 +1582,7 @@ function runInstallInternal(options) {
 
   if (!options.skipAgents) {
     operations.push(ensureAgentsSnippet(repoRoot, Boolean(options.dryRun), { force: Boolean(options.force) }));
+    operations.push(ensureClaudeAgentsLink(repoRoot, Boolean(options.dryRun)));
   }
 
   const hookResult = configureHooks(repoRoot, Boolean(options.dryRun));
@@ -1664,6 +1666,7 @@ function runFixInternal(options) {
 
   if (!options.skipAgents) {
     operations.push(ensureAgentsSnippet(repoRoot, Boolean(options.dryRun), { force: Boolean(options.force) }));
+    operations.push(ensureClaudeAgentsLink(repoRoot, Boolean(options.dryRun)));
   }
 
   const hookResult = configureHooks(repoRoot, Boolean(options.dryRun));
