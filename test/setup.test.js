@@ -98,6 +98,7 @@ test('setup provisions workflow files and repo config', () => {
     '.gitignore',
     '.vscode/settings.json',
     'AGENTS.md',
+    'CLAUDE.md',
   ];
 
   for (const relativePath of requiredFiles) {
@@ -148,6 +149,10 @@ test('setup provisions workflow files and repo config', () => {
   assert.match(agentsContent, /Default: less word, same proof\./);
   assert.match(agentsContent, /### Caveman style/);
   assert.match(agentsContent, /Answer order stays fixed: answer first, cause next, fix or next step last\./);
+
+  const claudeStats = fs.lstatSync(path.join(repoDir, 'CLAUDE.md'));
+  assert.equal(claudeStats.isSymbolicLink(), true, 'CLAUDE.md should link to AGENTS.md');
+  assert.equal(fs.readlinkSync(path.join(repoDir, 'CLAUDE.md')), 'AGENTS.md');
 
   const gitignoreContent = fs.readFileSync(path.join(repoDir, '.gitignore'), 'utf8');
   assert.match(gitignoreContent, /# multiagent-safety:START/);
@@ -201,6 +206,18 @@ test('setup provisions workflow files and repo config', () => {
       `${relativePath} should match the package repo canonical bundle`,
     );
   }
+});
+
+test('setup preserves an existing root CLAUDE.md instead of replacing it', () => {
+  const repoDir = initRepo();
+  fs.writeFileSync(path.join(repoDir, 'CLAUDE.md'), '# Existing Claude guidance\n', 'utf8');
+
+  const result = runNode(['setup', '--target', repoDir, '--no-global-install'], repoDir);
+  assert.equal(result.status, 0, result.stderr || result.stdout);
+
+  assert.equal(fs.readFileSync(path.join(repoDir, 'CLAUDE.md'), 'utf8'), '# Existing Claude guidance\n');
+  assert.equal(fs.lstatSync(path.join(repoDir, 'CLAUDE.md')).isSymbolicLink(), false);
+  assert.match(result.stdout, /existing path preserved/);
 });
 
 

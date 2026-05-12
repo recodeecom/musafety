@@ -539,6 +539,24 @@ function ensureAgentsSnippet(repoRoot, dryRun) {
   return { status: 'updated', file: 'AGENTS.md' };
 }
 
+function ensureClaudeAgentsLink(repoRoot, dryRun) {
+  const claudePath = path.join(repoRoot, 'CLAUDE.md');
+  try {
+    fs.lstatSync(claudePath);
+    return { status: 'unchanged', file: 'CLAUDE.md', note: 'existing path preserved' };
+  } catch (error) {
+    if (error.code !== 'ENOENT') {
+      throw error;
+    }
+  }
+
+  if (!dryRun) {
+    fs.symlinkSync('AGENTS.md', claudePath);
+  }
+
+  return { status: dryRun ? 'would-create' : 'created', file: 'CLAUDE.md', note: 'symlink to AGENTS.md' };
+}
+
 function ensureManagedGitignore(repoRoot, dryRun) {
   const gitignorePath = path.join(repoRoot, '.gitignore');
   const managedBlock = [
@@ -763,6 +781,7 @@ module.exports = {
   installUserLevelAsset,
   removeLegacyManagedRepoFile,
   ensureAgentsSnippet,
+  ensureClaudeAgentsLink,
   ensureManagedGitignore,
   parseJsonObjectLikeFile,
   buildRepoVscodeSettings,

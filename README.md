@@ -212,7 +212,8 @@ the compact layout everywhere.
 | --- | --- |
 | `AGENTS.md` **with** markers | Refreshes **only** the managed block. |
 | `AGENTS.md` **without** markers | Appends the managed block to the end. |
-| No `AGENTS.md` | Creates it with the managed block. |
+| No `AGENTS.md` | Creates it with the managed block, then links `CLAUDE.md` to it. |
+| No root `CLAUDE.md` | Creates a `CLAUDE.md` symlink to `AGENTS.md`. |
 | A root `CLAUDE.md` | Leaves it alone. |
 
 ---
