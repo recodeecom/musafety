@@ -56,6 +56,26 @@ If your team relies on AI review as a true gating signal (not just
 advisory), remove the `!startsWith(head.ref, 'agent/')` guard in
 `cr.yml`. Expect the OpenAI bill to scale linearly with merge volume.
 
+## Per-PR label opt-in
+
+Both `cr.yml` and `ci-full.yml` honor PR labels so the occasional
+agent PR that actually needs the heavier check can opt in without
+flipping a global toggle:
+
+| Label | Effect |
+| --- | --- |
+| `needs-review` | Run AI code review on this PR even though it's `agent/*`. Useful for security-sensitive changes or public-API redesigns. |
+| `needs-ci-full` | Run the full cross-runtime matrix from `ci-full.yml` on this PR instead of waiting for the weekly schedule. Useful before a release branch lands. |
+
+To enable: open the PR, then `gh pr edit <num> --add-label needs-review`
+(or click the labels picker in the GitHub UI). The label-trigger fires
+the workflow immediately; you don't need to re-push.
+
+Add label definitions to your repo with `gh label create needs-review
+--description "Run AI code review on this PR"` and similar for
+`needs-ci-full`, or define them in `.github/labels.yml` if you use a
+label-sync workflow.
+
 ## What about CodeQL / Scorecard?
 
 The gitguardex repo itself runs CodeQL and Scorecard on the **weekly

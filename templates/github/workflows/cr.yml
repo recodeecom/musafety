@@ -2,7 +2,7 @@ name: Code Review
 
 on:
   pull_request:
-    types: [opened, reopened, synchronize, ready_for_review]
+    types: [opened, reopened, synchronize, ready_for_review, labeled]
 
 permissions:
   contents: read
@@ -17,13 +17,18 @@ concurrency:
 
 jobs:
   review:
-    # Skip on draft PRs and on `agent/*` head branches. Gitguardex
-    # agent flows land high-volume PRs that don't benefit from AI
-    # review; skipping them is the single largest CR-bill cut.
-    # Review fires on `ready_for_review` automatically for human PRs.
+    # Skip on draft PRs and on `agent/*` head branches by default.
+    # Agent PRs can opt-in by applying the `needs-review` label —
+    # useful for the occasional agent PR that genuinely needs AI
+    # eyes (security-sensitive change, public-API redesign, etc.).
+    # Human-authored PRs (any non-`agent/*` head branch) always run.
     if: >-
       github.event.pull_request.draft == false &&
-      !startsWith(github.event.pull_request.head.ref, 'agent/')
+      (
+        !startsWith(github.event.pull_request.head.ref, 'agent/') ||
+        contains(github.event.pull_request.labels.*.name, 'needs-review') ||
+        (github.event.action == 'labeled' && github.event.label.name == 'needs-review')
+      )
     runs-on: ubuntu-latest
     env:
       OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
