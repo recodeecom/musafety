@@ -2,13 +2,16 @@ name: CI (full matrix)
 
 # Weekly compatibility run across the supported Node versions
 # (engine `>=18`). PR-time CI only runs Node 20 for budget reasons;
-# this catches Node 18 / 22 regressions within seven days, and can be
-# triggered on-demand via workflow_dispatch before a release.
+# this catches Node 18 / 22 regressions within seven days, can be
+# triggered on-demand via workflow_dispatch before a release, and can
+# be opted-into per-PR by applying the `needs-ci-full` label.
 
 on:
   schedule:
     - cron: '15 4 * * 1'
   workflow_dispatch:
+  pull_request:
+    types: [labeled, synchronize]
 
 permissions:
   contents: read
@@ -20,6 +23,12 @@ concurrency:
 jobs:
   test:
     name: test (node ${{ matrix.node }})
+    # PR runs only fire when the `needs-ci-full` label is present.
+    # Schedule and workflow_dispatch always run.
+    if: >-
+      github.event_name != 'pull_request' ||
+      contains(github.event.pull_request.labels.*.name, 'needs-ci-full') ||
+      (github.event.action == 'labeled' && github.event.label.name == 'needs-ci-full')
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false

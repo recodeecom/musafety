@@ -2,7 +2,7 @@ name: Code Review
 
 on:
   pull_request:
-    types: [opened, reopened, synchronize, ready_for_review]
+    types: [opened, reopened, synchronize, ready_for_review, labeled]
 
 permissions:
   contents: read
@@ -20,12 +20,15 @@ jobs:
     # skip review. The agent flow lands hundreds of PRs per month; AI
     # review on each one burns both Actions minutes and OpenAI tokens
     # without adding signal. Human-authored PRs (any non-`agent/*`
-    # head branch) still get reviewed; agent PRs can opt-in by adding
-    # a `needs-review` label, which a maintainer can re-run via
-    # `workflow_dispatch`-style label trigger if desired.
+    # head branch) still get reviewed; agent PRs opt-in by applying
+    # the `needs-review` label.
     if: >-
       github.event.pull_request.draft == false &&
-      !startsWith(github.event.pull_request.head.ref, 'agent/')
+      (
+        !startsWith(github.event.pull_request.head.ref, 'agent/') ||
+        contains(github.event.pull_request.labels.*.name, 'needs-review') ||
+        (github.event.action == 'labeled' && github.event.label.name == 'needs-review')
+      )
     runs-on: ubuntu-latest
     env:
       OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
