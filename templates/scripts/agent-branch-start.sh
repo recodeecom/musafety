@@ -508,24 +508,23 @@ managed_worktree_roots() {
   done
 }
 
-branch_tip_is_merged_into_protected_base() {
+branch_published_then_remote_pruned() {
+  # Detect the post-`gx branch finish --via-pr --cleanup` state: the agent
+  # branch was published (so upstream config is set), but the remote-tracking
+  # ref no longer exists (because `push origin --delete` ran during cleanup).
+  # That combination only arises after a finish that successfully merged the
+  # PR and pruned the remote branch — a freshly-created agent branch never
+  # has an upstream until publish, so this never false-positives on the
+  # "started, dirty, no commits yet" case that we want to keep reusable.
   local repo="$1"
-  local entry_worktree="$2"
-  local protected_raw="$3"
-  local head_sha base ref
-  head_sha="$(git -C "$entry_worktree" rev-parse --verify HEAD 2>/dev/null || true)"
-  if [[ -z "$head_sha" ]]; then
+  local branch="$2"
+  local upstream
+  upstream="$(git -C "$repo" config --get "branch.${branch}.remote" 2>/dev/null || true)"
+  [[ -n "$upstream" ]] || return 1
+  if git -C "$repo" show-ref --verify --quiet "refs/remotes/${upstream}/${branch}"; then
     return 1
   fi
-  for base in $protected_raw; do
-    for ref in "refs/heads/${base}" "refs/remotes/origin/${base}"; do
-      git -C "$repo" show-ref --verify --quiet "$ref" || continue
-      if git -C "$repo" merge-base --is-ancestor "$head_sha" "$ref" >/dev/null 2>&1; then
-        return 0
-      fi
-    done
-  done
-  return 1
+  return 0
 }
 
 find_matching_dirty_agent_worktree() {
@@ -537,8 +536,7 @@ find_matching_dirty_agent_worktree() {
   local best_branch=""
   local best_worktree=""
   local best_count=0
-  local root entry branch descriptor score protected_raw
-  protected_raw="$(resolve_protected_branches "$repo")"
+  local root entry branch descriptor score
 
   while IFS= read -r root; do
     [[ -d "$root" ]] || continue
@@ -549,13 +547,11 @@ find_matching_dirty_agent_worktree() {
       fi
       [[ "$branch" == "agent/${agent_slug}/"* ]] || continue
       has_local_changes "$entry" || continue
-      # Skip worktrees whose branch tip is already reachable from a
-      # protected base. After `gx branch finish --via-pr --cleanup` the
-      # worktree directory can linger on disk (e.g. the operator's shell
-      # is still cwd'd inside it). Reusing such a worktree for a new
-      # task would silently hand the next agent a stale, merged HEAD.
-      if branch_tip_is_merged_into_protected_base "$repo" "$entry" "$protected_raw"; then
-        echo "[agent-branch-start] Skipping merged-and-cleaned worktree: ${entry} (branch ${branch} already in base)" >&2
+      # Skip merged-and-cleaned worktrees that happen to still be on disk
+      # (e.g. operator's shell is cwd'd inside; cleanup deferred). Reusing
+      # such a worktree would silently hand the next agent a stale HEAD.
+      if branch_published_then_remote_pruned "$repo" "$branch"; then
+        echo "[agent-branch-start] Skipping merged-and-cleaned worktree: ${entry} (branch ${branch} has no remote tracking ref)" >&2
         continue
       fi
 
