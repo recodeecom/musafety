@@ -31,5 +31,5 @@
 
 ## 5. Cleanup
 
-- [ ] 5.1 Commit, push, open PR, merge, and cleanup with `gx branch finish --branch agent/codex/dmux-pane-context-menu-2026-04-30-13-54 --base main --via-pr --wait-for-merge --cleanup`.
-- [ ] 5.2 Record PR URL, final `MERGED` state, and sandbox cleanup evidence.
+- [x] 5.1 Commit, push, open PR, merge, and cleanup with `gx branch finish --branch agent/codex/dmux-pane-context-menu-2026-04-30-13-54 --base main --via-pr --wait-for-merge --cleanup`.
+- [x] 5.2 Record PR URL, final `MERGED` state, and sandbox cleanup evidence.

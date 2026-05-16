@@ -25,5 +25,5 @@
 ## 5. Cleanup
 
 - [x] 5.1 Confirm the OpenSpec tasks reflect the shipped behavior and note any residual risk. Residual risk: targeted `--force` selectors intentionally fail fast for unlisted paths, and this worktree currently has no main specs for `openspec validate --specs` beyond the clean `No items found to validate.` result.
-- [ ] 5.2 Finish the agent branch via PR merge + cleanup (`gx finish --via-pr --wait-for-merge --cleanup` or `bash scripts/agent-branch-finish.sh --branch <agent-branch> --base <base-branch> --via-pr --wait-for-merge --cleanup`).
-- [ ] 5.3 Record PR URL + final `MERGED` evidence in the completion handoff.
+- [x] 5.2 Finish the agent branch via PR merge + cleanup (`gx finish --via-pr --wait-for-merge --cleanup` or `bash scripts/agent-branch-finish.sh --branch <agent-branch> --base <base-branch> --via-pr --wait-for-merge --cleanup`).
+- [x] 5.3 Record PR URL + final `MERGED` evidence in the completion handoff.

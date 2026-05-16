@@ -20,6 +20,6 @@ Verification:
 
 ## Cleanup
 
-- [ ] Run: `gx branch finish --branch agent/codex/fix-active-agents-view-container-id-2026-04-25-15-48 --base main --via-pr --wait-for-merge --cleanup`
-- [ ] Record PR URL + `MERGED` state in the completion handoff.
-- [ ] Confirm sandbox worktree is gone (`git worktree list`, `git branch -a`).
+- [x] Run: `gx branch finish --branch agent/codex/fix-active-agents-view-container-id-2026-04-25-15-48 --base main --via-pr --wait-for-merge --cleanup`
+- [x] Record PR URL + `MERGED` state in the completion handoff.
+- [x] Confirm sandbox worktree is gone (`git worktree list`, `git branch -a`).

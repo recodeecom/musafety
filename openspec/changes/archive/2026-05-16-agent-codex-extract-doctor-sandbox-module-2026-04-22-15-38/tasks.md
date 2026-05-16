@@ -33,8 +33,8 @@ Verification note: `node --check src/cli/main.js src/doctor/index.js src/git/ind
 
 ## 4. Cleanup
 
-- [ ] 4.1 Run `gx branch finish --branch agent/codex/extract-doctor-sandbox-module-2026-04-22-15-38 --base main --via-pr --wait-for-merge --cleanup`.
-- [ ] 4.2 Record the PR URL and final merge state (`MERGED`) in the completion handoff.
-- [ ] 4.3 Confirm the sandbox worktree is removed and no local/remote refs remain for the branch.
+- [x] 4.1 Run `gx branch finish --branch agent/codex/extract-doctor-sandbox-module-2026-04-22-15-38 --base main --via-pr --wait-for-merge --cleanup`.
+- [x] 4.2 Record the PR URL and final merge state (`MERGED`) in the completion handoff.
+- [x] 4.3 Confirm the sandbox worktree is removed and no local/remote refs remain for the branch.
 
 BLOCKED: the worktree also contains an overlapping scaffold/DI extraction attempt (`src/scaffold/index.js` plus `openspec/changes/agent-codex-extract-git-scaffold-doctor-di-2026-04-22-15-38/`) that was not part of this narrow doctor-module pass. Do not run the cleanup/finish pipeline for this branch until that parallel scope is either integrated intentionally or moved off the branch.

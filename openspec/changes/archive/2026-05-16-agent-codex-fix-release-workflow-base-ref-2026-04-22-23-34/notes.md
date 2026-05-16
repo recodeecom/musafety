@@ -22,7 +22,7 @@ Verification:
 
 ## Cleanup
 
-- [ ] Run: `gx branch finish --branch agent/codex/fix-release-workflow-base-ref-2026-04-22-23-34 --base main --via-pr --wait-for-merge --cleanup`
-- [ ] Run: `gh workflow run "Release to npm (provenance)" --repo recodeee/gitguardex --ref main`
-- [ ] Record PR URL + `MERGED` state and rerun evidence in the completion handoff.
-- [ ] Confirm sandbox worktree is gone (`git worktree list`, `git branch -a`).
+- [x] Run: `gx branch finish --branch agent/codex/fix-release-workflow-base-ref-2026-04-22-23-34 --base main --via-pr --wait-for-merge --cleanup`
+- [x] Run: `gh workflow run "Release to npm (provenance)" --repo recodeee/gitguardex --ref main`
+- [x] Record PR URL + `MERGED` state and rerun evidence in the completion handoff.
+- [x] Confirm sandbox worktree is gone (`git worktree list`, `git branch -a`).

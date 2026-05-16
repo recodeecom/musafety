@@ -16,6 +16,6 @@ Verification:
 
 ## Cleanup
 
-- [ ] Run `gx branch finish --branch agent/codex/fix-doctor-source-probe-stale-worktree-2026-04-22-15-33 --base main --via-pr --wait-for-merge --cleanup`
-- [ ] Record PR URL + `MERGED` state in the completion handoff.
-- [ ] Confirm sandbox worktree is gone (`git worktree list`, `git branch -a`).
+- [x] Run `gx branch finish --branch agent/codex/fix-doctor-source-probe-stale-worktree-2026-04-22-15-33 --base main --via-pr --wait-for-merge --cleanup`
+- [x] Record PR URL + `MERGED` state in the completion handoff.
+- [x] Confirm sandbox worktree is gone (`git worktree list`, `git branch -a`).
