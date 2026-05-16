@@ -19,4 +19,4 @@ Verification evidence:
 
 ## 4. Cleanup
 
-- [ ] 4.1 Commit, push, open/update PR, merge, and clean up the worktree.
+- [x] 4.1 Commit, push, open/update PR, merge, and clean up the worktree.
