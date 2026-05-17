@@ -36,6 +36,8 @@ const { setup } = require('./commands/setup');
 const { install, fix, scan } = require('./commands/bootstrap');
 const { doctor } = require('./commands/doctor');
 const { review, prReview } = require('./commands/review');
+const { pr: prCommand } = require('./commands/pr');
+const { claude: claudeCommand } = require('./commands/claude');
 const { agents } = require('./commands/agents');
 const { report } = require('./commands/report');
 const { release } = require('./commands/release');
@@ -205,6 +207,8 @@ async function main() {
 
   if (command === 'prompt') return prompt(rest);
   if (command === 'pr-review') return prReview(rest);
+  if (command === 'pr') return prCommand(rest);
+  if (command === 'claude') return claudeCommand(rest);
   if (command === 'doctor') return doctor(rest);
   if (command === 'branch') return branch(rest);
   if (command === 'pivot') return pivot(rest);

@@ -7,6 +7,28 @@ This document is the agent contract for this repo. It applies identically to Cod
 - Optimize for task completion with low token use.
 - Prefer phase-based execution over conversational micro-steps.
 
+## Claude Code quickstart
+
+If you are a Claude Code session arriving in this repo for the first time:
+
+1. **Branch awareness** — `skill_guard.py` accepts `agent/*`, `claude/*`,
+   `codex/*`, and `cursor/*` as agent-managed branch namespaces by default.
+   Your harness-assigned `claude/<...>` branch is recognized; you don't need
+   to set `GUARDEX_AGENT_BRANCH_PREFIXES`. If you ever do need to lock down
+   namespaces, set `GUARDEX_AGENT_BRANCH_PREFIXES_ONLY=1` plus an explicit
+   list.
+2. **Slash commands** — `/gx-status`, `/gx-doctor`, `/gx-pivot`,
+   `/gx-pr`, `/gx-finish`, `/gx-setup` are available out of the box. See
+   `.claude/commands/`.
+3. **PR flow** — when you need explicit PR control, use `gx pr open`,
+   `gx pr status`, `gx pr sync`, or `gx pr watch`. For end-of-task
+   commit + push + PR + merge + cleanup, still use the non-negotiable
+   `gx branch finish --via-pr --wait-for-merge --cleanup`.
+4. **Repo wiring** — `gx claude install` writes `.claude/settings.json`,
+   hooks, slash commands, and the gitguardex skill into a target repo.
+   `gx claude check` diagnoses drift without writing; `gx claude doctor`
+   diagnoses and repairs.
+
 ## ExecPlans
 
 When writing complex features or significant refactors, use an ExecPlan (as described in `.agent/PLANS.md`) from design to implementation.

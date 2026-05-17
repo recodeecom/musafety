@@ -27,10 +27,20 @@ PROTECTED_BRANCH_EDIT_OVERRIDE_ENV = "ALLOW_CODE_EDIT_ON_PROTECTED_BRANCH"
 SHELL_GUARD_OVERRIDE_ENV = "ALLOW_BASH_ON_NON_AGENT_BRANCH"
 PRIMARY_WORKTREE_AGENT_EDIT_OVERRIDE_ENV = "ALLOW_CODE_EDIT_ON_PRIMARY_WORKTREE"
 # Extra agent-branch prefixes (comma- or space-separated). The hardcoded
-# "agent/" prefix is always recognized; this env var adds session-managed
-# prefixes like "claude/" without forcing repos to fork the hook.
+# defaults below are always recognized; this env var adds session-managed
+# prefixes without forcing repos to fork the hook.
+#
+# Defaults cover the common agentic-CLI branch namespaces:
+#   - "agent/"   — Guardex / Codex / generic agent branches
+#   - "claude/"  — Claude Code session branches (e.g. claude/improve-X-Segmk)
+#   - "codex/"   — Codex Cloud session branches
+#   - "cursor/"  — Cursor background-agent branches
+#
+# Repos that want to restrict to a single prefix should set
+# GUARDEX_AGENT_BRANCH_PREFIXES_ONLY=1 along with an explicit list.
 AGENT_BRANCH_PREFIXES_ENV = "GUARDEX_AGENT_BRANCH_PREFIXES"
-DEFAULT_AGENT_BRANCH_PREFIXES = ("agent/",)
+AGENT_BRANCH_PREFIXES_EXCLUSIVE_ENV = "GUARDEX_AGENT_BRANCH_PREFIXES_ONLY"
+DEFAULT_AGENT_BRANCH_PREFIXES = ("agent/", "claude/", "codex/", "cursor/")
 PATCH_FILE_HEADER_RE = re.compile(
     r"^\*\*\* (?:Update|Add|Delete) File:\s+(.+?)\s*$",
     re.MULTILINE,
@@ -51,13 +61,16 @@ SHELL_ALLOWED_SEGMENTS = (
     re.compile(r"^git\s+pull(?:\s+--ff-only|\s+--rebase|\s+origin\s+\S+)?\s*$"),
     re.compile(r"^git\s+pull\s+--ff-only(?:\s+\S+){0,2}\s*$"),
     re.compile(r"^git\s+pull\s+--rebase(?:\s+\S+){0,2}\s*$"),
-    # Pushing agent/* branches from any cwd is safe — guarded branch namespace.
-    re.compile(r"^git\s+push(?:\s+(?:-u|--set-upstream))?\s+\S+\s+agent/[^\s]+(?:\s|$)"),
-    re.compile(r"^git\s+push(?:\s+(?:-u|--set-upstream))?\s+\S+\s+HEAD:agent/[^\s]+(?:\s|$)"),
+    # Pushing/checking out branches in any recognized agent namespace is safe.
+    # The capture group lists each default prefix; extra prefixes from
+    # GUARDEX_AGENT_BRANCH_PREFIXES are honored at branch-detection time, so
+    # these regexes only need to cover the built-in namespaces.
+    re.compile(r"^git\s+push(?:\s+(?:-u|--set-upstream))?\s+\S+\s+(?:agent|claude|codex|cursor)/[^\s]+(?:\s|$)"),
+    re.compile(r"^git\s+push(?:\s+(?:-u|--set-upstream))?\s+\S+\s+HEAD:(?:agent|claude|codex|cursor)/[^\s]+(?:\s|$)"),
     re.compile(
         r"^gh\s+(?:auth\s+status|repo\s+view|pr\s+(?:list|view|checks|status|create|edit|comment|review|ready|reopen|merge)|issue\s+(?:list|view|status|create|comment)|run\s+(?:list|view|watch)|workflow\s+(?:list|view|run))\b"
     ),
-    re.compile(r"^git\s+(?:checkout|switch)\s+agent/[^\s]+(?:\s|$)"),
+    re.compile(r"^git\s+(?:checkout|switch)\s+(?:agent|claude|codex|cursor)/[^\s]+(?:\s|$)"),
     re.compile(r"^(?:ls|cat|head|tail|wc|nl|sed\s+-n|rg|find|stat|du|df|ps|ss|which|command\s+-v)\b"),
     # All gitguardex CLI subcommands are themselves safety-aware; trust them on protected branches.
     re.compile(r"^(?:gx|guardex|gitguardex|multiagent-safety)\s+\S+\b"),
@@ -297,11 +310,20 @@ def _parse_branch_prefixes(raw: str) -> tuple[str, ...]:
 
 
 def agent_branch_prefixes() -> tuple[str, ...]:
-    """Active agent-branch prefixes: defaults plus GUARDEX_AGENT_BRANCH_PREFIXES."""
+    """Active agent-branch prefixes: defaults plus GUARDEX_AGENT_BRANCH_PREFIXES.
+
+    If GUARDEX_AGENT_BRANCH_PREFIXES_ONLY=1, only the explicit env list is used
+    (defaults are dropped). This is for repos that want to lock down which
+    namespaces count as agent-managed.
+    """
     extras = _parse_branch_prefixes(os.environ.get(AGENT_BRANCH_PREFIXES_ENV, ""))
+    exclusive = os.environ.get(AGENT_BRANCH_PREFIXES_EXCLUSIVE_ENV, "").strip().lower() in {
+        "1", "true", "yes", "on",
+    }
+    base = () if exclusive else DEFAULT_AGENT_BRANCH_PREFIXES
     seen: set[str] = set()
     out: list[str] = []
-    for prefix in (*DEFAULT_AGENT_BRANCH_PREFIXES, *extras):
+    for prefix in (*base, *extras):
         if prefix not in seen:
             seen.add(prefix)
             out.append(prefix)

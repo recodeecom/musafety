@@ -18,6 +18,10 @@ function makeRepoOn(branchName) {
   assert.equal(run('init', '-q', '-b', branchName).status, 0);
   assert.equal(run('config', 'user.email', 'test@example.com').status, 0);
   assert.equal(run('config', 'user.name', 'Test').status, 0);
+  // Disable signing locally: harness may set global commit.gpgsign=true
+  // with a signing program that does not exist in the sandbox.
+  assert.equal(run('config', 'commit.gpgsign', 'false').status, 0);
+  assert.equal(run('config', 'tag.gpgsign', 'false').status, 0);
   fs.writeFileSync(path.join(dir, 'seed.txt'), 'seed\n');
   assert.equal(run('add', '.').status, 0);
   assert.equal(run('commit', '-q', '-m', 'seed').status, 0);
@@ -110,17 +114,45 @@ test('skill_guard allows arbitrary shell on agent/* branch', () => {
   }
 });
 
-test('skill_guard does NOT recognize claude/* by default', () => {
+test('skill_guard recognizes claude/* by default (Claude Code branch namespace)', () => {
   const dir = makeRepoOn('claude/improve-codebase-VctLa');
   try {
     const result = invokeHook(dir, bashPayload('rm seed.txt', dir));
-    assert.equal(result.status, 2, 'expected block without env override');
+    assert.equal(result.status, 0, result.stderr || result.stdout);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('skill_guard recognizes codex/* and cursor/* by default', () => {
+  for (const branch of ['codex/lane-a', 'cursor/refactor-1']) {
+    const dir = makeRepoOn(branch);
+    try {
+      const result = invokeHook(dir, bashPayload('rm seed.txt', dir));
+      assert.equal(result.status, 0, `expected allow on ${branch}: ${result.stderr || result.stdout}`);
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  }
+});
+
+test('GUARDEX_AGENT_BRANCH_PREFIXES_ONLY=1 drops defaults', () => {
+  const dir = makeRepoOn('claude/foo-bar');
+  try {
+    // Claude prefix is in defaults, but exclusive mode + an unrelated prefix
+    // should block edits on a claude/* branch.
+    const result = invokeHook(dir, bashPayload('rm seed.txt', dir), {
+      GUARDEX_AGENT_BRANCH_PREFIXES_ONLY: '1',
+      GUARDEX_AGENT_BRANCH_PREFIXES: 'agent/',
+    });
+    assert.equal(result.status, 2, 'exclusive mode should block non-listed prefixes');
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
   }
 });
 
 test('skill_guard recognizes claude/* when GUARDEX_AGENT_BRANCH_PREFIXES is set', () => {
+  // Still works via env (additive on top of defaults).
   const dir = makeRepoOn('claude/improve-codebase-VctLa');
   try {
     const result = invokeHook(dir, bashPayload('rm seed.txt', dir), {
